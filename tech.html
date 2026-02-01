@@ -690,8 +690,9 @@
     useEffect(() => {
         if (!user) return;
 
-        const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-const SETTLEMENT_KEY = toKey(getSettlement());
+       const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+const SETTLEMENT = getSettlement();
+const SETTLEMENT_KEY = toKey(SETTLEMENT);
 
 const inspectionsRef = window.dbRef(
   window.database,
@@ -863,7 +864,7 @@ const signatureUrl = await window.getDownloadURL(sigRef);
     createdBy: user.uid
 };
 // Save to Firebase
-const inspectionsRef = window.dbRef(window.database, `settlements/${SETTLEMENT}/tech_inspections`
+const inspectionsRef = window.dbRef(window.database, `settlements/${SETTLEMENT_KEY}/tech_inspections`
 );
 const newInspectionRef = window.dbPush(inspectionsRef);
 window.dbSet(newInspectionRef, {
