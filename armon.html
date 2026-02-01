@@ -1125,14 +1125,19 @@ form.updateFieldAppearances(hebFont);
 
                     // Add signature
                     try {
-                        // Try as button field first (for image)
-                        const signatureField = form.getButton('officer_signature');
-                        const signatureBytes = await fetch(inspection.signature).then(res => res.arrayBuffer());
-                        const signatureImg = await pdfDoc.embedPng(signatureBytes);
-                        signatureField.setImage(signatureImg);
-                    } catch (e) {
-                        // Signature field is not a button, skip
-                    }
+  // Try as button field first (for image)
+  const signatureField = form.getButton('officer_signature');
+
+  const sigSrc = inspection.signatureUrl || inspection.signature; // חדש/ישן
+  if (!sigSrc) throw new Error('No signature source');
+
+  const signatureBytes = await fetch(sigSrc).then(res => res.arrayBuffer());
+  const signatureImg = await pdfDoc.embedPng(signatureBytes);
+  signatureField.setImage(signatureImg);
+} catch (e) {
+  // Signature field is not a button, or no signature, skip
+}
+
 
                     // Hebrew font + appearances
 pdfDoc.registerFontkit(fontkit);
