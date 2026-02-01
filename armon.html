@@ -29,6 +29,7 @@
         messagingSenderId: "415528668284",
         appId: "1:415528668284:web:6829c57d517c09ccf04df9"
     };
+const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
 
     const app = initializeApp(firebaseConfig);
 
@@ -798,7 +799,13 @@
                 const SETTLEMENT = getSettlement();
 
 const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-const SETTLEMENT_KEY = toKey(getSettlement());
+const getSettlementObj = () => {
+  try {
+    const saved = localStorage.getItem('currentSettlement');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return { name: 'פני קדם', key: 'פני_קדם' };
+};
 
 const inspectionsRef = window.dbRef(
   window.database,

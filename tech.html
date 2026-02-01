@@ -28,6 +28,7 @@
         messagingSenderId: "415528668284",
         appId: "1:415528668284:web:6829c57d517c09ccf04df9"
     };
+const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
 
     const app = initializeApp(firebaseConfig);
 
@@ -908,7 +909,15 @@ window.dbSet(newInspectionRef, {
 
 const deleteInspection = (id) => {
   if (confirm('האם למחוק ביקורת זו?')) {
-    const SETTLEMENT_KEY = toKey(SETTLEMENT);
+const getSettlementObj = () => {
+  try {
+    const saved = localStorage.getItem('currentSettlement');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return { name: 'פני קדם', key: 'פני_קדם' };
+};
+
+const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
     const inspectionRef = window.dbRef(
       window.database,
       `settlements/${SETTLEMENT_KEY}/tech_inspections/${id}`
