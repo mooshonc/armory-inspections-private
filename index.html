@@ -695,9 +695,10 @@
                 const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
 
 const settlementObj = { 
-  name: selectedSettlementName,
-  key: toKey(selectedSettlementName)
+  name: settlement.name,
+  key: toKey(settlement.name)
 };
+
 
 localStorage.setItem('currentSettlement', JSON.stringify(settlementObj));
 
