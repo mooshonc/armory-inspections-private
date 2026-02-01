@@ -809,6 +809,25 @@
                 }
             }, [officer]);
 
+            // Set default date/time
+            useEffect(() => {
+                const now = new Date();
+                setDate(now.toISOString().split('T')[0]);
+                setTime(now.toTimeString().slice(0, 5));
+            }, []);
+
+            // Signature canvas setup
+            useEffect(() => {
+                const canvas = signatureCanvasRef.current;
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            }, []);
+
             // Show loading screen
             if (loading) {
                 return (
@@ -825,23 +844,6 @@
                     </div>
                 );
             }
-
-            useEffect(() => {
-                const now = new Date();
-                setDate(now.toISOString().split('T')[0]);
-                setTime(now.toTimeString().slice(0, 5));
-            }, []);
-
-            useEffect(() => {
-                const canvas = signatureCanvasRef.current;
-                if (!canvas) return;
-
-                const ctx = canvas.getContext('2d');
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 2;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-            }, []);
 
             const showToast = (message) => {
                 setToast(message);
