@@ -736,13 +736,13 @@
       if (settlement && settlement.name) return settlement.name;
     }
   } catch (e) {}
-  return 'פני קדם';
+  return 'פני_קדם';
 };
 
 
         const App = () => {
             const SETTLEMENT = getSettlement();
-            const SETTLEMENT_KEY = (SETTLEMENT || 'פני קדם')
+            const SETTLEMENT_KEY = (SETTLEMENT || 'פני_קדם')
     .trim()
     .replace(/[.#$[\]/]/g, '-')
     .replace(/\s+/g, '_');
@@ -1582,7 +1582,7 @@ const deleteInspection = (id) => {
                                         className="btn-modal-delete"
                                         onClick={() => {
                                             if (confirm('האם למחוק ביקורת זו?')) {
-                                                const inspectionRef = window.dbRef(window.database, `users/${user.uid}/inspections_armon/${selectedInspection.id}`);
+                                                const inspectionRef = window.dbRef(window.database, `users/${user.uid}/armon_inspections/${selectedInspection.id}`);
                                                 window.dbRemove(inspectionRef)
                                                     .then(() => {
                                                         showToast('✅ הביקורת נמחקה');
