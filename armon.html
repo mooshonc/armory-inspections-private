@@ -939,6 +939,9 @@ const inspectionsRef = window.dbRef(
 const SETTLEMENT_KEY = (SETTLEMENT || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
 const sigPath = `signatures/${SETTLEMENT_KEY}/armon/${user.uid}/${Date.now()}.png`;
 const sigRef = window.storageRef(window.storage, sigPath);
+console.log('SETTLEMENT=', SETTLEMENT);
+console.log('SETTLEMENT_KEY=', SETTLEMENT_KEY);
+console.log('sigPath=', sigPath);
 
 await window.uploadString(sigRef, signatureData, 'data_url');
 const signatureUrl = await window.getDownloadURL(sigRef);
