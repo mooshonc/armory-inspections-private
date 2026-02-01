@@ -739,6 +739,10 @@
 
         const App = () => {
             const SETTLEMENT = getSettlement();
+            const SETTLEMENT_KEY = (SETTLEMENT || 'פני קדם')
+    .trim()
+    .replace(/[.#$[\]/]/g, '-')
+    .replace(/\s+/g, '_');
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('form');
@@ -1182,10 +1186,10 @@ const toKey = (s) =>
 const deleteInspection = (id) => {
   if (confirm('האם למחוק ביקורת זו?')) {
     const SETTLEMENT_KEY = toKey(SETTLEMENT);
-    const inspectionRef = window.dbRef(
-      window.database,
-      `settlements/${SETTLEMENT_KEY}/tech_inspections/${id}`
-    );
+    const inspectionsRef = window.dbRef(
+  window.database,
+  `settlements/${SETTLEMENT_KEY}/armon_inspections`
+);
 
     window.dbRemove(inspectionRef)
       .then(() => showToast('✅ הביקורת נמחקה'))

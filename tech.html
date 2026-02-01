@@ -998,11 +998,11 @@ const deleteInspection = (id) => {
                             form.getTextField(`row_${rowNum}_inspector_id`).setText(insp.inspectorId);
 
                             // Add signature
-                            if (insp.signature) {
-                                try {
-                                    // Get signature field position
-                                    const signatureField = form.getTextField(`row_${rowNum}_signature`);
-                                    const widgets = signatureField.acroField.getWidgets();
+                            const sigSrc = insp.signatureUrl || insp.signature; // תאימות לאחור (ישנים/חדשים)
+if (sigSrc) {
+  try {
+    const signatureBytes = await fetch(sigSrc).then(res => res.arrayBuffer());
+    const signatureImg = await pdfDoc.embedPng(signatureBytes);
                                     
                                     if (widgets.length > 0) {
                                         const widget = widgets[0];
