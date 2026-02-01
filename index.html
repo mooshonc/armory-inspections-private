@@ -581,12 +581,12 @@
                         }
                     } else {
                         // Default settlement
-                        const defaultSettlements = [{ id: 'pnei_kedem', name: 'פני_קדם' }];
+                        const defaultSettlements = [{ id: 'pnei_kedem', name: 'פני קדם' }];
                         setSettlements(defaultSettlements);
                         setSelectedSettlement('pnei_kedem');
                         // Save to Firebase
                         window.dbSet(window.dbRef(window.database, `users/${user.uid}/settlements/pnei_kedem`), {
-                            name: 'פני_קדם'
+                            name: 'פני קדם'
                         });
                     }
                 });
@@ -692,7 +692,15 @@
                 if (!settlement) return;
 
                 // Store selected settlement for the inspection app
-                localStorage.setItem('currentSettlement', JSON.stringify(settlement));
+                const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+
+const settlementObj = { 
+  name: selectedSettlementName,
+  key: toKey(selectedSettlementName)
+};
+
+localStorage.setItem('currentSettlement', JSON.stringify(settlementObj));
+
 
                 // Navigate to inspection page
                 const pages = {
