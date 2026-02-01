@@ -927,14 +927,16 @@ const inspectionsRef = window.dbRef(
                 const signatureData = signatureCanvas.toDataURL('image/png');
 
                 const newInspection = {
-                    type: inspectionType,
-                    date,
-                    time,
-                    items: {...items},
-                    officer: {...officer},
-                    signature: signatureData,
-                    createdAt: new Date().toISOString()
-                };
+    type: inspectionType,
+    date,
+    time,
+    items: {...items},
+    officer: {...officer},
+    signature: signatureData,
+    createdAt: new Date().toISOString(),
+    createdBy: user.uid
+};
+
 
                 // Save to Firebase
                 const SETTLEMENT = getSettlement();

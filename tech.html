@@ -831,12 +831,13 @@
                 const signatureData = signatureCanvas.toDataURL('image/png');
 
                 const inspection = {
-                    id: Date.now(),
-                    settlement: SETTLEMENT,
-                    ...newInspection,
-                    signature: signatureData,
-                    createdAt: new Date().toISOString()
-                };
+    id: Date.now(),
+    settlement: SETTLEMENT,
+    ...newInspection,
+    signature: signatureData,
+    createdAt: new Date().toISOString(),
+    createdBy: user.uid
+};
 // Save to Firebase
 const inspectionsRef = window.dbRef(window.database, `settlements/${SETTLEMENT}/tech_inspections`
 );
