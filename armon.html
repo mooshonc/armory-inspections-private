@@ -729,13 +729,16 @@
         
         // Get settlement from localStorage (set by index.html)
         const getSettlement = () => {
-            const saved = localStorage.getItem('currentSettlement');
-            if (saved) {
-                const settlement = JSON.parse(saved);
-                return settlement.name;
-            }
-            return 'פני קדם'; // Default
-        };
+  try {
+    const saved = localStorage.getItem('currentSettlement');
+    if (saved) {
+      const settlement = JSON.parse(saved);
+      if (settlement && settlement.name) return settlement.name;
+    }
+  } catch (e) {}
+  return 'פני קדם';
+};
+
 
         const App = () => {
             const SETTLEMENT = getSettlement();
@@ -944,6 +947,7 @@ const SETTLEMENT_KEY = ((SETTLEMENT && String(SETTLEMENT).trim()) ? String(SETTL
   .replace(/[.#$[\]/]/g, '-')
   .replace(/\s+/g, '_');
 const sigPath = `signatures/${SETTLEMENT_KEY}/armon/${user.uid}/${Date.now()}.png`;
+console.log('sigPath=', sigPath);
 const sigRef = window.storageRef(window.storage, sigPath);
 console.log('SETTLEMENT=', SETTLEMENT);
 console.log('SETTLEMENT_KEY=', SETTLEMENT_KEY);

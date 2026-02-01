@@ -637,13 +637,16 @@
         
         // Get settlement from localStorage (set by index.html)
         const getSettlement = () => {
-            const saved = localStorage.getItem('currentSettlement');
-            if (saved) {
-                const settlement = JSON.parse(saved);
-                return settlement.name;
-            }
-            return 'פני קדם'; // Default
-        };
+  try {
+    const saved = localStorage.getItem('currentSettlement');
+    if (saved) {
+      const settlement = JSON.parse(saved);
+      if (settlement && settlement.name) return settlement.name;
+    }
+  } catch (e) {}
+  return 'פני קדם';
+};
+
 
         const App = () => {
     const SETTLEMENT = getSettlement();
