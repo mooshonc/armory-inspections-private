@@ -799,7 +799,7 @@
 
 const inspectionsRef = window.dbRef(
   window.database,
-  `settlements/${SETTLEMENT}/armory_inspections`
+  `settlements/${SETTLEMENT_KEY}/armon_inspections`
 );
 
                 const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
@@ -974,7 +974,7 @@ const signatureUrl = await window.getDownloadURL(sigRef);
 
 const inspectionsRef = window.dbRef(
   window.database,
-  `settlements/${SETTLEMENT}/armory_inspections`
+  `settlements/${SETTLEMENT_KEY}/armon_inspections`
 );
 
                 const newInspectionRef = window.dbPush(inspectionsRef);
