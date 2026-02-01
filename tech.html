@@ -639,6 +639,26 @@
     const SETTLEMENT = getSettlement();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('new');
+    const [inspections, setInspections] = useState([]);
+    const [toast, setToast] = useState('');
+    const [selectedInspection, setSelectedInspection] = useState(null);
+    const [newInspection, setNewInspection] = useState({
+        date: '',
+        time: '',
+        door: '',
+        windows: '',
+        siren: '',
+        dialer: '',
+        camera: '',
+        notes: '',
+        inspectorName: '',
+        inspectorId: ''
+    });
+    const [isDrawing, setIsDrawing] = useState(false);
+    
+    const signatureCanvasRef = useRef(null);
+
     // Check if user is logged in
     useEffect(() => {
         const unsubscribe = window.onAuthStateChanged(window.auth, (currentUser) => {
@@ -669,47 +689,27 @@
             </div>
         );
     }
-            const [activeTab, setActiveTab] = useState('new');
-            const [inspections, setInspections] = useState([]);
-            const [toast, setToast] = useState('');
-            const [selectedInspection, setSelectedInspection] = useState(null);
 
-            // New inspection form
-            const [newInspection, setNewInspection] = useState({
-                date: '',
-                time: '',
-                door: '',
-                windows: '',
-                siren: '',
-                dialer: '',
-                camera: '',
-                notes: '',
-                inspectorName: '',
-                inspectorId: ''
-            });
-            const [isDrawing, setIsDrawing] = useState(false);
-            const signatureCanvasRef = useRef(null);
+    // Load inspections from Firebase
+    useEffect(() => {
+        if (!user) return;
 
-            // Load inspections from Firebase
-useEffect(() => {
-    if (!user) return;
+        const inspectionsRef = window.dbRef(window.database, `users/${user.uid}/inspections_tech`);
+        const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const inspectionsArray = Object.keys(data).map(key => ({
+                    id: key,
+                    ...data[key]
+                }));
+                setInspections(inspectionsArray);
+            } else {
+                setInspections([]);
+            }
+        });
 
-    const inspectionsRef = window.dbRef(window.database, `users/${user.uid}/inspections_tech`);
-    const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            const inspectionsArray = Object.keys(data).map(key => ({
-                id: key,
-                ...data[key]
-            }));
-            setInspections(inspectionsArray);
-        } else {
-            setInspections([]);
-        }
-    });
-
-    return () => unsubscribe();
-}, [user]);
+        return () => unsubscribe();
+    }, [user]);
 
             // Load inspector details from localStorage
             useEffect(() => {
