@@ -1,0 +1,1554 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a365d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ביקורת מחסן ארמון">
+    <title>ביקורת מחסן ארמון</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+            authDomain: "armory-inspections-private.firebaseapp.com",
+            databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "armory-inspections-private",
+            storageBucket: "armory-inspections-private.firebasestorage.app",
+            messagingSenderId: "415528668284",
+            appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.auth = getAuth(app);
+        window.database = getDatabase(app);
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.dbRef = ref;
+        window.dbPush = push;
+        window.dbSet = set;
+        window.dbOnValue = onValue;
+        window.dbRemove = remove;
+    </script>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1a365d;
+            --primary-light: #2c5282;
+            --accent: #c6a052;
+            --accent-light: #d4af61;
+            --success: #276749;
+            --success-light: #38a169;
+            --danger: #c53030;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #475569;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            font-family: 'Heebo', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        #root {
+            min-height: 100vh;
+        }
+
+        .app-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 16px;
+            padding-bottom: 100px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 24px 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.85);
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .nav-tab {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav-tab.active {
+            background: var(--accent);
+            color: var(--bg-dark);
+        }
+
+        /* Form Card */
+        .form-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 24px;
+        }
+
+        .form-section {
+            margin-bottom: 24px;
+        }
+
+        .form-section h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        /* Type Selection */
+        .type-selection {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .type-button {
+            padding: 16px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .type-button:hover {
+            background: var(--primary-light);
+            border-color: var(--primary-light);
+        }
+
+        .type-button.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg-dark);
+        }
+
+        /* Input Fields */
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(198, 160, 82, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        /* Items Table */
+        .items-container {
+            overflow-x: auto;
+            margin-bottom: 24px;
+        }
+
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+
+        .items-table th,
+        .items-table td {
+            padding: 12px 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .items-table th {
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            font-size: 0.85rem;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .items-table td {
+            background: var(--bg-input);
+        }
+
+        .items-table .item-name {
+            text-align: right;
+            font-weight: 500;
+        }
+
+        .items-table .item-code {
+            text-align: right;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .items-table input {
+            padding: 8px;
+            text-align: center;
+            font-size: 0.95rem;
+        }
+
+        .items-table .total-cell {
+            background: rgba(198, 160, 82, 0.1);
+            font-weight: 600;
+            color: var(--accent-light);
+        }
+
+        /* Signature Canvas */
+        .signature-container {
+            margin-bottom: 24px;
+        }
+
+        .signature-canvas {
+            width: 100%;
+            height: 200px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: white;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .signature-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .btn-clear-signature {
+            flex: 1;
+            padding: 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-clear-signature:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+            border: none;
+            border-radius: 12px;
+            color: var(--bg-dark);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* History List */
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .history-item {
+            background: var(--bg-input);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-item:hover {
+            border-color: var(--accent);
+            transform: translateX(-4px);
+        }
+
+        .history-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .history-item-title {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .history-item-type {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .history-item-type.open {
+            background: rgba(56, 161, 105, 0.2);
+            color: #68d391;
+        }
+
+        .history-item-type.close {
+            background: rgba(237, 137, 54, 0.2);
+            color: #f6ad55;
+        }
+
+        .history-item-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .history-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-small {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Heebo', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-generate {
+            background: var(--accent);
+            color: var(--bg-dark);
+        }
+
+        .btn-delete {
+            background: var(--danger);
+            color: white;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--success);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 12px;
+            }
+
+            .form-card {
+                padding: 16px;
+            }
+
+            .items-table th,
+            .items-table td {
+                padding: 8px 4px;
+                font-size: 0.8rem;
+            }
+
+            .items-table input {
+                padding: 6px;
+                font-size: 0.85rem;
+            }
+
+            .input-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Dialog Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section h3 {
+            font-size: 1.1rem;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .modal-field {
+            padding: 12px;
+            background: var(--bg-input);
+            border-radius: 8px;
+        }
+
+        .modal-field-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .modal-field-value {
+            font-size: 1rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .modal-items-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .modal-items-table th,
+        .modal-items-table td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid var(--border);
+        }
+
+        .modal-items-table th {
+            background: var(--bg-input);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .modal-items-table td {
+            background: var(--bg-card);
+        }
+
+        .modal-signature {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-modal-delete {
+            flex: 1;
+            padding: 12px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-modal-delete:hover {
+            background: #b91c1c;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        const ITEMS = [
+            { code: '100012000', name: 'רובה מ4 אמתן 11.5' },
+            { code: '100012359', name: 'רוס"ר M-16' },
+            { code: '100012332', name: 'רוס"ק M-16' },
+            { code: '100021013', name: 'מאג' },
+            { code: '100025108', name: 'מטול רימונים M-203' },
+            { code: '100081059', name: 'משקפת 10×40' },
+            { code: '100081350', name: 'משקפת 7×50' },
+            { code: '100081954', name: 'אמר"ל "עכבר"' }
+        ];
+
+        const STORAGE_KEY = 'armon_inspections';
+        
+        // Get settlement from localStorage (set by index.html)
+        const getSettlement = () => {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) {
+                const settlement = JSON.parse(saved);
+                return settlement.name;
+            }
+            return 'פני קדם'; // Default
+        };
+
+        const App = () => {
+            const SETTLEMENT = getSettlement();
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('form');
+            const [inspectionType, setInspectionType] = useState('');
+            const [date, setDate] = useState('');
+            const [time, setTime] = useState('');
+            const [items, setItems] = useState(
+                ITEMS.reduce((acc, item) => {
+                    acc[item.code] = {
+                        recorded: '',
+                        tempLoan: '',
+                        inventory: '',
+                        zeroing: '',
+                        notes: ''
+                    };
+                    return acc;
+                }, {})
+            );
+            const [officer, setOfficer] = useState({
+                name: '',
+                id: '',
+                rank: ''
+            });
+            const [inspections, setInspections] = useState([]);
+            const [isGenerating, setIsGenerating] = useState(false);
+            const [toast, setToast] = useState('');
+            const [selectedInspection, setSelectedInspection] = useState(null);
+            const [isDrawing, setIsDrawing] = useState(false);
+            
+            const signatureCanvasRef = useRef(null);
+
+            // Check if user is logged in
+            useEffect(() => {
+                const unsubscribe = window.onAuthStateChanged(window.auth, (currentUser) => {
+                    if (!currentUser) {
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                    setUser(currentUser);
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            // Load inspections from Firebase
+            useEffect(() => {
+                if (!user) return;
+
+                const inspectionsRef = window.dbRef(window.database, `users/${user.uid}/inspections_armon`);
+                const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.val();
+                        const inspectionsArray = Object.keys(data).map(key => ({
+                            id: key,
+                            ...data[key]
+                        }));
+                        setInspections(inspectionsArray);
+                    } else {
+                        setInspections([]);
+                    }
+                });
+
+                return () => unsubscribe();
+            }, [user]);
+
+            // Load officer details from localStorage
+            useEffect(() => {
+                const savedOfficer = localStorage.getItem('armon_officer_details');
+                if (savedOfficer) {
+                    setOfficer(JSON.parse(savedOfficer));
+                }
+            }, []);
+
+            // Save officer details to localStorage when changed
+            useEffect(() => {
+                if (officer.name || officer.id || officer.rank) {
+                    localStorage.setItem('armon_officer_details', JSON.stringify(officer));
+                }
+            }, [officer]);
+
+            // Show loading screen
+            if (loading) {
+                return (
+                    <div style={{
+                        minHeight: '100vh',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'var(--bg-dark)',
+                        color: 'var(--text-primary)',
+                        fontSize: '1.5rem'
+                    }}>
+                        ⏳ טוען...
+                    </div>
+                );
+            }
+
+            useEffect(() => {
+                const now = new Date();
+                setDate(now.toISOString().split('T')[0]);
+                setTime(now.toTimeString().slice(0, 5));
+            }, []);
+
+            useEffect(() => {
+                const canvas = signatureCanvasRef.current;
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            }, []);
+
+            const showToast = (message) => {
+                setToast(message);
+                setTimeout(() => setToast(''), 3000);
+            };
+
+            const handleItemChange = (code, field, value) => {
+                setItems(prev => ({
+                    ...prev,
+                    [code]: {
+                        ...prev[code],
+                        [field]: value
+                    }
+                }));
+            };
+
+            const calculateTotal = (code) => {
+                const item = items[code];
+                const inventory = parseFloat(item.inventory) || 0;
+                const zeroing = parseFloat(item.zeroing) || 0;
+                return inventory + zeroing;
+            };
+
+            // Signature Drawing
+            const startDrawing = (e) => {
+                const canvas = signatureCanvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                
+                const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+                
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                setIsDrawing(true);
+            };
+
+            const draw = (e) => {
+                if (!isDrawing) return;
+                
+                e.preventDefault();
+                const canvas = signatureCanvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                
+                const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+                const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+                
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            };
+
+            const stopDrawing = () => {
+                setIsDrawing(false);
+            };
+
+            const clearSignature = () => {
+                const canvas = signatureCanvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            };
+
+            const saveInspection = () => {
+                if (!inspectionType) {
+                    showToast('יש לבחור סוג ביקורת');
+                    return false;
+                }
+
+                if (!officer.name || !officer.id || !officer.rank) {
+                    showToast('יש למלא את כל פרטי הרבש"ץ');
+                    return false;
+                }
+
+                const signatureCanvas = signatureCanvasRef.current;
+                const signatureData = signatureCanvas.toDataURL('image/png');
+
+                const newInspection = {
+                    type: inspectionType,
+                    date,
+                    time,
+                    items: {...items},
+                    officer: {...officer},
+                    signature: signatureData,
+                    createdAt: new Date().toISOString()
+                };
+
+                // Save to Firebase
+                const inspectionsRef = window.dbRef(window.database, `users/${user.uid}/inspections_armon`);
+                const newInspectionRef = window.dbPush(inspectionsRef);
+                window.dbSet(newInspectionRef, {
+                    ...newInspection,
+                    id: newInspectionRef.key
+                })
+                .then(() => {
+                    showToast('✅ הביקורת נשמרה בהצלחה!');
+                    
+                    // Reset form
+                    setInspectionType('');
+                    setItems(ITEMS.reduce((acc, item) => {
+                        acc[item.code] = {
+                            recorded: '',
+                            tempLoan: '',
+                            inventory: '',
+                            zeroing: '',
+                            notes: ''
+                        };
+                        return acc;
+                    }, {}));
+                    clearSignature();
+                    
+                    // Switch to history tab
+                    setActiveTab('history');
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    showToast('❌ שגיאה בשמירה');
+                });
+
+                return true;
+            };
+
+            const generatePDF = async (inspection) => {
+                setIsGenerating(true);
+
+                try {
+  const templateUrl = './armon_inspection_template.pdf';
+  const templateBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
+
+  const pdfDoc = await PDFLib.PDFDocument.load(templateBytes);
+  const form = pdfDoc.getForm();
+
+  // קביעת פתיחה/סגירה בשדה open_close (זה שדה טקסט)
+  const openCloseField = form.getTextField('open_close');
+
+  // ערך הטקסט בהתאם לסוג הביקורת
+  const openCloseText = (inspection && inspection.type === 'open') ? 'פתיחה' : 'סגירה';
+  openCloseField.setText(openCloseText);
+
+
+                    // 1) בדיקת עברית בשדה אחד
+form.getTextField('officer_name').setText(inspection.officer.name);   // שם בעברית
+form.getTextField('officer_rank').setText(inspection.officer.rank);   // דרגה בעברית
+form.getTextField('officer_id').setText(String(inspection.officer.id)); // מספר
+// בדיקה: הערה לפריט אחד בלבד
+const RLM = '\u200F';
+
+// 2) הטמעת פונט עברי
+if (!window.fontkit) {
+  throw new Error('fontkit not loaded. Check the <script> tag order in HTML.');
+}
+pdfDoc.registerFontkit(window.fontkit);
+
+const fontRes = await fetch('./Heebo-Regular.ttf');
+
+const hebFontBytes = await fontRes.arrayBuffer();
+
+const hebFont = await pdfDoc.embedFont(hebFontBytes, { subset: true });
+
+// 3) לצייר את כל השדות עם הפונט הזה
+form.updateFieldAppearances(hebFont);
+
+
+                    // Fill inspection type - increase font size
+                    try {
+                        const ocField = form.getTextField('open_close');
+                        ocField.setText(inspection.type === 'open' ? 'פתיחה' : 'סגירה');
+                        ocField.setFontSize(16); // הגדלת פונט
+                    } catch (e) {
+                        console.error('Failed to set open_close:', e);
+                    }
+
+                    // Fill date and time - smaller font and centered
+                    const dateObj = new Date(inspection.date);
+                    const dayField = form.getTextField('date_day');
+                    const monthField = form.getTextField('date_month');
+                    const yearField = form.getTextField('date_year');
+                    const hourField = form.getTextField('time_hour');
+                    const minuteField = form.getTextField('time_minute');
+                    
+                    dayField.setText(String(dateObj.getDate()));
+                    monthField.setText(String(dateObj.getMonth() + 1));
+                    yearField.setText(String(dateObj.getFullYear()));
+                    
+                    const [hours, minutes] = inspection.time.split(':');
+                    hourField.setText(hours);
+                    minuteField.setText(minutes);
+                    
+                    // Set smaller font and center alignment for date/time fields
+                    [dayField, monthField, yearField, hourField, minuteField].forEach(field => {
+                        field.setFontSize(10); // הקטנת פונט
+                        field.setAlignment(PDFLib.TextAlignment.Center); // ריכוז
+                    });
+
+                    // Fill items - only numeric fields
+                    ITEMS.forEach(item => {
+                        const itemData = inspection.items[item.code];
+                        const code = item.code;
+
+                        // Only fill numeric fields to avoid Hebrew encoding error
+                        if (itemData.recorded) {
+                            try {
+                                form.getTextField(`item_${code}_recorded`).setText(itemData.recorded);
+                            } catch (e) {
+                                // Field not found, skip
+                            }
+                        }
+                        if (itemData.tempLoan) {
+                            try {
+                                form.getTextField(`item_${code}_temp_loan`).setText(itemData.tempLoan);
+                            } catch (e) {
+                                // Field not found, skip
+                            }
+                        }
+                        if (itemData.inventory) {
+                            try {
+                                form.getTextField(`item_${code}_inventory`).setText(itemData.inventory);
+                            } catch (e) {
+                                // Field not found, skip
+                            }
+                        }
+                        if (itemData.zeroing) {
+                            try {
+                                form.getTextField(`item_${code}_zeroing`).setText(itemData.zeroing);
+                            } catch (e) {
+                                // Field not found, skip
+                            }
+                        }
+                        
+                        const total = (parseFloat(itemData.inventory) || 0) + (parseFloat(itemData.zeroing) || 0);
+                        if (total > 0) {
+                            try {
+                                form.getTextField(`item_${code}_total`).setText(String(total));
+                            } catch (e) {
+                                // Field not found, skip
+                            }
+                        }
+                        
+                        // Skip notes - they contain Hebrew text
+                        // if (itemData.notes) {
+                        //     form.getTextField(`item_${code}_notes`).setText(itemData.notes);
+                        // }
+                    });
+
+                    // Fill officer details - skip Hebrew fields
+                    // form.getTextField('officer_name').setText(inspection.officer.name);
+                    form.getTextField('officer_id').setText(inspection.officer.id);
+                    // form.getTextField('officer_rank').setText(inspection.officer.rank);
+
+                    // Add signature
+                    try {
+                        // Try as button field first (for image)
+                        const signatureField = form.getButton('officer_signature');
+                        const signatureBytes = await fetch(inspection.signature).then(res => res.arrayBuffer());
+                        const signatureImg = await pdfDoc.embedPng(signatureBytes);
+                        signatureField.setImage(signatureImg);
+                    } catch (e) {
+                        // Signature field is not a button, skip
+                    }
+
+                    // Hebrew font + appearances
+pdfDoc.registerFontkit(fontkit);
+
+// מצייר את כל ערכי השדות עם הפונט העברי
+form.updateFieldAppearances(hebFont);
+
+// שמירה
+const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
+
+
+                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Open in new tab
+                    window.open(url, '_blank');
+                    
+                    // Also download
+                    const link = document.createElement('a');
+                    link.href = url;
+                    const typeText = inspection.type === 'open' ? 'פתיחה' : 'סגירה';
+                    link.download = `ביקורת_מחסן_ארמון_${typeText}_${inspection.date}_${inspection.time.replace(':', '')}.pdf`;
+                    link.click();
+
+                    showToast('הדוח הופק בהצלחה! 📄');
+                } catch (error) {
+                    console.error('Error generating PDF:', error);
+                    showToast('שגיאה בהפקת הדוח');
+                } finally {
+                    setIsGenerating(false);
+                }
+            };
+
+            const deleteInspection = (id) => {
+                if (confirm('האם למחוק ביקורת זו?')) {
+                    const inspectionRef = window.dbRef(window.database, `users/${user.uid}/inspections_armon/${id}`);
+                    window.dbRemove(inspectionRef)
+                        .then(() => {
+                            showToast('✅ הביקורת נמחקה');
+                        })
+                        .catch((error) => {
+                            console.error('Error:', error);
+                            showToast('❌ שגיאה במחיקה');
+                        });
+                }
+            };
+
+            const formatDate = (dateStr) => {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('he-IL');
+            };
+
+            return (
+                <div className="app-container">
+                    <div className="header">
+                        <button 
+                            onClick={() => window.location.href = 'index.html'}
+                            style={{
+                                position: 'absolute',
+                                top: '16px',
+                                right: '16px',
+                                background: 'rgba(255,255,255,0.2)',
+                                border: 'none',
+                                color: 'white',
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.3s',
+                                zIndex: 100
+                            }}
+                            onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+                            onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                        >
+                            🏠 חזור
+                        </button>
+                        <div className="header-content">
+                            <h1>🛡️ ביקורת מחסן ארמון</h1>
+                            <p>{SETTLEMENT} - ספירת מלאי</p>
+                        </div>
+                    </div>
+
+                    <div className="nav-tabs">
+                        <button
+                            className={`nav-tab ${activeTab === 'form' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('form')}
+                        >
+                            📝 ביקורת חדשה
+                        </button>
+                        <button
+                            className={`nav-tab ${activeTab === 'history' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('history')}
+                        >
+                            📋 היסטוריה ({inspections.length})
+                        </button>
+                    </div>
+
+                    {activeTab === 'form' && (
+                        <div className="form-card">
+                            <div className="form-section">
+                                <h3>סוג הביקורת</h3>
+                                <div className="type-selection">
+                                    <button
+                                        className={`type-button ${inspectionType === 'open' ? 'active' : ''}`}
+                                        onClick={() => setInspectionType('open')}
+                                    >
+                                        🔓 פתיחה
+                                    </button>
+                                    <button
+                                        className={`type-button ${inspectionType === 'close' ? 'active' : ''}`}
+                                        onClick={() => setInspectionType('close')}
+                                    >
+                                        🔒 סגירה
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>תאריך ושעה</h3>
+                                <div className="input-row">
+                                    <div className="input-group">
+                                        <label>תאריך</label>
+                                        <input
+                                            type="date"
+                                            value={date}
+                                            onChange={(e) => setDate(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>שעה</label>
+                                        <input
+                                            type="time"
+                                            value={time}
+                                            onChange={(e) => setTime(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>פרטי פריטים</h3>
+                                <div className="items-container">
+                                    <table className="items-table">
+                                        <thead>
+                                            <tr>
+                                                <th>חומר</th>
+                                                <th>שם פריט</th>
+                                                <th>מלאי רישום<br/>בישוב</th>
+                                                <th>השאלות<br/>זמניות</th>
+                                                <th>מצאי<br/>במחסן</th>
+                                                <th>איפסון</th>
+                                                <th>סה"כ מצאי<br/>במחסן</th>
+                                                <th>הערות</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {ITEMS.map(item => (
+                                                <tr key={item.code}>
+                                                    <td className="item-code">{item.code}</td>
+                                                    <td className="item-name">{item.name}</td>
+                                                    <td>
+                                                        <input
+                                                            type="number"
+                                                            value={items[item.code].recorded}
+                                                            onChange={(e) => handleItemChange(item.code, 'recorded', e.target.value)}
+                                                            placeholder="0"
+                                                        />
+                                                    </td>
+                                                    <td>
+                                                        <input
+                                                            type="number"
+                                                            value={items[item.code].tempLoan}
+                                                            onChange={(e) => handleItemChange(item.code, 'tempLoan', e.target.value)}
+                                                            placeholder="0"
+                                                        />
+                                                    </td>
+                                                    <td>
+                                                        <input
+                                                            type="number"
+                                                            value={items[item.code].inventory}
+                                                            onChange={(e) => handleItemChange(item.code, 'inventory', e.target.value)}
+                                                            placeholder="0"
+                                                        />
+                                                    </td>
+                                                    <td>
+                                                        <input
+                                                            type="number"
+                                                            value={items[item.code].zeroing}
+                                                            onChange={(e) => handleItemChange(item.code, 'zeroing', e.target.value)}
+                                                            placeholder="0"
+                                                        />
+                                                    </td>
+                                                    <td className="total-cell">
+                                                        {calculateTotal(item.code) || '-'}
+                                                    </td>
+                                                    <td>
+                                                        <input
+                                                            type="text"
+                                                            value={items[item.code].notes}
+                                                            onChange={(e) => handleItemChange(item.code, 'notes', e.target.value)}
+                                                            placeholder="הערות"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>פרטי הרבש"ץ</h3>
+                                <div className="input-group">
+                                    <label>שם ומשפחה *</label>
+                                    <input
+                                        type="text"
+                                        value={officer.name}
+                                        onChange={(e) => setOfficer({...officer, name: e.target.value})}
+                                        placeholder="שם מלא"
+                                    />
+                                </div>
+                                <div className="input-row">
+                                    <div className="input-group">
+                                        <label>מ.א. *</label>
+                                        <input
+                                            type="text"
+                                            value={officer.id}
+                                            onChange={(e) => setOfficer({...officer, id: e.target.value})}
+                                            placeholder="מספר אישי"
+                                        />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>דרגה *</label>
+                                        <input
+                                            type="text"
+                                            value={officer.rank}
+                                            onChange={(e) => setOfficer({...officer, rank: e.target.value})}
+                                            placeholder="דרגה"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>חתימה *</h3>
+                                <div className="signature-container">
+                                    <canvas
+                                        ref={signatureCanvasRef}
+                                        className="signature-canvas"
+                                        width={800}
+                                        height={200}
+                                        onMouseDown={startDrawing}
+                                        onMouseMove={draw}
+                                        onMouseUp={stopDrawing}
+                                        onMouseLeave={stopDrawing}
+                                        onTouchStart={startDrawing}
+                                        onTouchMove={draw}
+                                        onTouchEnd={stopDrawing}
+                                    />
+                                    <div className="signature-controls">
+                                        <button className="btn-clear-signature" onClick={clearSignature}>
+                                            🗑️ נקה חתימה
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                className="btn-primary"
+                                onClick={saveInspection}
+                            >
+                                <span>💾</span>
+                                <span>שמור ביקורת</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {activeTab === 'history' && (
+                        <div className="form-card">
+                            {inspections.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">📭</div>
+                                    <div>אין ביקורות שמורות</div>
+                                </div>
+                            ) : (
+                                <div className="history-list">
+                                    {inspections.map(inspection => (
+                                        <div 
+                                            key={inspection.id} 
+                                            className="history-item"
+                                            onClick={() => setSelectedInspection(inspection)}
+                                            style={{cursor: 'pointer'}}
+                                        >
+                                            <div className="history-item-header">
+                                                <div className="history-item-title">
+                                                    {formatDate(inspection.date)} - {inspection.time}
+                                                </div>
+                                                <div className={`history-item-type ${inspection.type}`}>
+                                                    {inspection.type === 'open' ? '🔓 פתיחה' : '🔒 סגירה'}
+                                                </div>
+                                            </div>
+                                            <div className="history-item-info">
+                                                רבש"ץ: {inspection.officer.name} | {inspection.officer.rank}
+                                            </div>
+                                            <div className="history-actions" onClick={(e) => e.stopPropagation()}>
+                                                <button 
+                                                    className="btn-small btn-generate"
+                                                    onClick={() => generatePDF(inspection)}
+                                                >
+                                                    📄 הפק דוח
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {toast && <div className="toast">{toast}</div>}
+
+                    {selectedInspection && (
+                        <div className="modal-overlay" onClick={() => setSelectedInspection(null)}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>פרטי ביקורת</h2>
+                                    <button className="modal-close" onClick={() => setSelectedInspection(null)}>×</button>
+                                </div>
+                                
+                                <div className="modal-body">
+                                    <div className="modal-section">
+                                        <h3>פרטים כלליים</h3>
+                                        <div className="modal-grid">
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">תאריך</div>
+                                                <div className="modal-field-value">{formatDate(selectedInspection.date)}</div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">שעה</div>
+                                                <div className="modal-field-value">{selectedInspection.time}</div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">סוג</div>
+                                                <div className="modal-field-value">
+                                                    {selectedInspection.type === 'open' ? '🔓 פתיחה' : '🔒 סגירה'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="modal-section">
+                                        <h3>פריטים</h3>
+                                        <table className="modal-items-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>פריט</th>
+                                                    <th>נרשם</th>
+                                                    <th>הש"ז</th>
+                                                    <th>במחסן</th>
+                                                    <th>איפוס</th>
+                                                    <th>סה"כ</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {ITEMS.map(item => {
+                                                    const itemData = selectedInspection.items[item.code];
+                                                    const total = (parseFloat(itemData.inventory) || 0) + (parseFloat(itemData.zeroing) || 0);
+                                                    return (
+                                                        <tr key={item.code}>
+                                                            <td style={{textAlign: 'right'}}>{item.name}</td>
+                                                            <td>{itemData.recorded || '-'}</td>
+                                                            <td>{itemData.tempLoan || '-'}</td>
+                                                            <td>{itemData.inventory || '-'}</td>
+                                                            <td>{itemData.zeroing || '-'}</td>
+                                                            <td><strong>{total || '-'}</strong></td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="modal-section">
+                                        <h3>רבש"ץ</h3>
+                                        <div className="modal-grid">
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">שם</div>
+                                                <div className="modal-field-value">{selectedInspection.officer.name}</div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">מספר אישי</div>
+                                                <div className="modal-field-value">{selectedInspection.officer.id}</div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">דרגה</div>
+                                                <div className="modal-field-value">{selectedInspection.officer.rank}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {selectedInspection.signature && (
+                                        <div className="modal-section">
+                                            <h3>חתימה</h3>
+                                            <img 
+                                                src={selectedInspection.signature} 
+                                                alt="חתימה" 
+                                                className="modal-signature"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="modal-footer">
+                                    <button 
+                                        className="btn-modal-delete"
+                                        onClick={() => {
+                                            if (confirm('האם למחוק ביקורת זו?')) {
+                                                const inspectionRef = window.dbRef(window.database, `users/${user.uid}/inspections_armon/${selectedInspection.id}`);
+                                                window.dbRemove(inspectionRef)
+                                                    .then(() => {
+                                                        showToast('✅ הביקורת נמחקה');
+                                                        setSelectedInspection(null);
+                                                    })
+                                                    .catch((error) => {
+                                                        console.error('Error:', error);
+                                                        showToast('❌ שגיאה במחיקה');
+                                                    });
+                                            }
+                                        }}
+                                                setSelectedInspection(null);
+                                                showToast('הביקורת נמחקה');
+                                            }
+                                        }}
+                                    >
+                                        🗑️ מחק ביקורת
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
