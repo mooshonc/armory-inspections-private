@@ -1148,6 +1148,29 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                     setIsGenerating(false);
                 }
             };
+const toKey = (s) =>
+  String(s || '')
+    .trim()
+    .replace(/[.#$[\]/]/g, '-')   // תווים אסורים ב-RTDB
+    .replace(/\s+/g, '_');        // רווחים -> _
+
+const deleteInspection = (id) => {
+  if (confirm('האם למחוק ביקורת זו?')) {
+    const SETTLEMENT_KEY = toKey(SETTLEMENT);
+    const inspectionRef = window.dbRef(
+      window.database,
+      `settlements/${SETTLEMENT_KEY}/tech_inspections/${id}`
+    );
+
+    window.dbRemove(inspectionRef)
+      .then(() => showToast('✅ הביקורת נמחקה'))
+      .catch((error) => {
+        console.error('Error:', error);
+        showToast('❌ שגיאה במחיקה');
+      });
+  }
+};
+
 
             const formatDate = (dateStr) => {
                 const d = new Date(dateStr);
