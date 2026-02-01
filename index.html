@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a365d">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ביקורות נשקייה">
+    <link rel="manifest" href="manifest.json">
+    <title>ביקורות נשקייה</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1a365d;
+            --primary-light: #2c5282;
+            --accent: #c6a052;
+            --accent-light: #d4af61;
+            --success: #276749;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border: #475569;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            font-family: 'Heebo', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        #root {
+            min-height: 100vh;
+        }
+
+        .app-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            padding-bottom: 100px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 32px 24px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 20px;
+            margin-bottom: 32px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header-subtitle {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+        }
+
+        /* Settlement Selection */
+        .settlement-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 32px;
+            box-shadow: var(--shadow);
+        }
+
+        .settlement-card h2 {
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .settlement-select {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .settlement-select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(198, 160, 82, 0.2);
+        }
+
+        .settlement-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .btn-manage {
+            flex: 1;
+            padding: 12px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-manage:hover {
+            background: var(--border);
+            transform: translateY(-2px);
+        }
+
+        .btn-add {
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .btn-add:hover {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-delete {
+            border-color: #c53030;
+            color: #c53030;
+        }
+
+        .btn-delete:hover {
+            background: #c53030;
+            color: white;
+        }
+
+        /* Inspection Cards */
+        .inspections-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .inspection-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: var(--shadow);
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .inspection-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-light) 100%);
+            transform: scaleX(0);
+            transition: transform 0.3s;
+        }
+
+        .inspection-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--accent);
+        }
+
+        .inspection-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .inspection-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .inspection-icon {
+            font-size: 2.5rem;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-input);
+            border-radius: 12px;
+        }
+
+        .inspection-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .inspection-subtitle {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+
+        .inspection-description {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-top: 8px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal h3 {
+            font-size: 1.4rem;
+            margin-bottom: 20px;
+            color: var(--accent);
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-input);
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            margin-bottom: 16px;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .modal-btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            background: var(--accent-light);
+        }
+
+        .modal-btn-secondary {
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+
+        .modal-btn-secondary:hover {
+            background: var(--border);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--success);
+            color: white;
+            padding: 16px 32px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            font-weight: 600;
+            z-index: 2000;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                bottom: -50px;
+                opacity: 0;
+            }
+            to {
+                bottom: 30px;
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 16px;
+            }
+
+            .header h1 {
+                font-size: 1.75rem;
+            }
+
+            .inspection-title {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const App = () => {
+            const [settlements, setSettlements] = useState([]);
+            const [selectedSettlement, setSelectedSettlement] = useState('');
+            const [showAddModal, setShowAddModal] = useState(false);
+            const [newSettlementName, setNewSettlementName] = useState('');
+            const [toast, setToast] = useState('');
+            const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+            // Capture install prompt
+            useEffect(() => {
+                const handler = (e) => {
+                    e.preventDefault();
+                    setDeferredPrompt(e);
+                };
+                window.addEventListener('beforeinstallprompt', handler);
+                return () => window.removeEventListener('beforeinstallprompt', handler);
+            }, []);
+
+            // Load settlements from localStorage
+            useEffect(() => {
+                const saved = localStorage.getItem('settlements');
+                const defaultSettlements = [{ id: 'pnei_kedem', name: 'פני קדם' }];
+                
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    setSettlements(parsed);
+                    if (parsed.length > 0) {
+                        setSelectedSettlement(parsed[0].id);
+                    }
+                } else {
+                    setSettlements(defaultSettlements);
+                    setSelectedSettlement('pnei_kedem');
+                    localStorage.setItem('settlements', JSON.stringify(defaultSettlements));
+                }
+            }, []);
+
+            const handleInstall = async () => {
+                if (!deferredPrompt) {
+                    showToast('ההתקנה זמינה רק בדפדפנים נתמכים');
+                    return;
+                }
+                
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                
+                if (outcome === 'accepted') {
+                    showToast('✅ האפליקציה הותקנה!');
+                } else {
+                    showToast('ההתקנה בוטלה');
+                }
+                
+                setDeferredPrompt(null);
+            };
+
+            const showToast = (message) => {
+                setToast(message);
+                setTimeout(() => setToast(''), 3000);
+            };
+
+            const addSettlement = () => {
+                if (!newSettlementName.trim()) {
+                    showToast('נא להזין שם ישוב');
+                    return;
+                }
+
+                const newId = newSettlementName.trim().toLowerCase().replace(/\s+/g, '_');
+                const newSettlement = { id: newId, name: newSettlementName.trim() };
+                
+                const updated = [...settlements, newSettlement];
+                setSettlements(updated);
+                localStorage.setItem('settlements', JSON.stringify(updated));
+                
+                setShowAddModal(false);
+                setNewSettlementName('');
+                showToast('✅ הישוב נוסף בהצלחה');
+            };
+
+            const deleteSettlement = () => {
+                if (settlements.length === 1) {
+                    showToast('❌ לא ניתן למחוק את הישוב האחרון');
+                    return;
+                }
+
+                if (!confirm(`האם למחוק את "${settlements.find(s => s.id === selectedSettlement)?.name}"?`)) {
+                    return;
+                }
+
+                const updated = settlements.filter(s => s.id !== selectedSettlement);
+                setSettlements(updated);
+                setSelectedSettlement(updated[0].id);
+                localStorage.setItem('settlements', JSON.stringify(updated));
+                showToast('✅ הישוב נמחק');
+            };
+
+            const openInspection = (type) => {
+                const settlement = settlements.find(s => s.id === selectedSettlement);
+                if (!settlement) return;
+
+                // Store selected settlement for the inspection app
+                localStorage.setItem('currentSettlement', JSON.stringify(settlement));
+
+                // Navigate to inspection page
+                const pages = {
+                    armory: 'armory.html',
+                    armon: 'armon.html',
+                    tech: 'tech.html'
+                };
+
+                window.location.href = pages[type];
+            };
+
+            const inspections = [
+                {
+                    id: 'armory',
+                    icon: '🔫',
+                    title: 'לפני ואחרי חצות',
+                    subtitle: 'ביקורת נשקייה',
+                    description: 'ביקורת נשק לפני ואחרי חצות - בדיקת נשקים, תחמושת וציוד'
+                },
+                {
+                    id: 'armon',
+                    icon: '📦',
+                    title: 'מחסן ארמון',
+                    subtitle: 'ספירת מלאי',
+                    description: 'ביקורת פתיחה וסגירה של מחסן ארמון - ספירת ציוד צבאי'
+                },
+                {
+                    id: 'tech',
+                    icon: '🛡️',
+                    title: 'תקינות מערכות טכנולוגיות',
+                    subtitle: 'ביקורת יומית',
+                    description: 'בדיקת תקינות דלתות, חלונות, מצלמות ומערכות אזעקה'
+                }
+            ];
+
+            return (
+                <div className="app-container">
+                    <div className="header">
+                        <div className="header-content">
+                            <h1>🛡️ ביקורות נשקייה</h1>
+                            <div className="header-subtitle">מערכת ניהול ביקורות מאובטחת</div>
+                            {deferredPrompt && (
+                                <button
+                                    onClick={handleInstall}
+                                    style={{
+                                        marginTop: '16px',
+                                        padding: '12px 24px',
+                                        background: 'var(--accent)',
+                                        border: 'none',
+                                        borderRadius: '12px',
+                                        color: 'white',
+                                        fontSize: '1rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        margin: '16px auto 0',
+                                        boxShadow: 'var(--shadow)',
+                                        transition: 'all 0.3s'
+                                    }}
+                                    onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
+                                    onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
+                                >
+                                    📲 התקן אפליקציה
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="settlement-card">
+                        <h2>📍 בחירת ישוב</h2>
+                        <select 
+                            className="settlement-select"
+                            value={selectedSettlement}
+                            onChange={(e) => setSelectedSettlement(e.target.value)}
+                        >
+                            {settlements.map(settlement => (
+                                <option key={settlement.id} value={settlement.id}>
+                                    {settlement.name}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="settlement-actions">
+                            <button className="btn-manage btn-add" onClick={() => setShowAddModal(true)}>
+                                ➕ הוסף ישוב
+                            </button>
+                            <button className="btn-manage btn-delete" onClick={deleteSettlement}>
+                                🗑️ מחק ישוב
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="inspections-grid">
+                        {inspections.map(inspection => (
+                            <div 
+                                key={inspection.id}
+                                className="inspection-card"
+                                onClick={() => openInspection(inspection.id)}
+                            >
+                                <div className="inspection-header">
+                                    <div className="inspection-icon">{inspection.icon}</div>
+                                    <div>
+                                        <div className="inspection-title">{inspection.title}</div>
+                                        <div className="inspection-subtitle">{inspection.subtitle}</div>
+                                    </div>
+                                </div>
+                                <div className="inspection-description">
+                                    {inspection.description}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {showAddModal && (
+                        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+                            <div className="modal" onClick={(e) => e.stopPropagation()}>
+                                <h3>➕ הוספת ישוב חדש</h3>
+                                <input
+                                    type="text"
+                                    className="modal-input"
+                                    placeholder="שם הישוב"
+                                    value={newSettlementName}
+                                    onChange={(e) => setNewSettlementName(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && addSettlement()}
+                                    autoFocus
+                                />
+                                <div className="modal-buttons">
+                                    <button className="modal-btn modal-btn-primary" onClick={addSettlement}>
+                                        הוסף
+                                    </button>
+                                    <button className="modal-btn modal-btn-secondary" onClick={() => setShowAddModal(false)}>
+                                        ביטול
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {toast && <div className="toast">{toast}</div>}
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/armory-inspections/sw.js')
+                    .then((registration) => {
+                        console.log('ServiceWorker registered:', registration);
+                    })
+                    .catch((error) => {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

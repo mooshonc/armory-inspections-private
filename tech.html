@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a365d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ביקורת מערכות טכנולוגיות">
+    <title>ביקורת מערכות טכנולוגיות</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+            authDomain: "armory-inspections-private.firebaseapp.com",
+            databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "armory-inspections-private",
+            storageBucket: "armory-inspections-private.firebasestorage.app",
+            messagingSenderId: "415528668284",
+            appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.auth = getAuth(app);
+        window.database = getDatabase(app);
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.dbRef = ref;
+        window.dbPush = push;
+        window.dbSet = set;
+        window.dbOnValue = onValue;
+        window.dbRemove = remove;
+    </script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1a365d;
+            --primary-light: #2c5282;
+            --accent: #c6a052;
+            --accent-light: #d4af61;
+            --success: #276749;
+            --success-light: #38a169;
+            --danger: #c53030;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #475569;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            font-family: 'Heebo', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        #root {
+            min-height: 100vh;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 16px;
+            padding-bottom: 100px;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 24px 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+            border-radius: 16px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.5;
+        }
+
+        .header-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: white;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.85);
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .nav-tab {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .nav-tab.active {
+            background: var(--accent);
+            color: var(--bg-dark);
+        }
+
+        /* Form Card */
+        .form-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-lg);
+            margin-bottom: 24px;
+        }
+
+        .form-section {
+            margin-bottom: 24px;
+        }
+
+        .form-section h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        /* Input Fields */
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .input-row-3 {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(198, 160, 82, 0.1);
+        }
+
+        select {
+            cursor: pointer;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        /* Signature Canvas */
+        .signature-container {
+            margin-bottom: 16px;
+        }
+
+        .signature-canvas {
+            width: 100%;
+            height: 150px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: white;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .signature-controls {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .btn-clear-signature {
+            flex: 1;
+            padding: 8px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-clear-signature:hover {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+            border: none;
+            border-radius: 12px;
+            color: var(--bg-dark);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Heebo', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .btn-secondary:hover {
+            background: var(--primary-light);
+            border-color: var(--primary-light);
+        }
+
+        /* Inspection List */
+        .inspection-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .inspection-item {
+            background: var(--bg-input);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+        }
+
+        .inspection-item:hover {
+            border-color: var(--accent);
+        }
+
+        .inspection-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .inspection-item-date {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 1.1rem;
+        }
+
+        .inspection-item-info {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .inspection-item-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-ok {
+            background: rgba(56, 161, 105, 0.2);
+            color: #68d391;
+        }
+
+        .status-fault {
+            background: rgba(245, 101, 101, 0.2);
+            color: #fc8181;
+        }
+
+        .inspection-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-small {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Heebo', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-delete {
+            background: var(--danger);
+            color: white;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+        }
+
+        /* Month Selector */
+        .month-selector {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+        }
+
+        .month-selector h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--success);
+            color: white;
+            padding: 16px 24px;
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-container {
+                padding: 12px;
+            }
+
+            .form-card {
+                padding: 16px;
+            }
+
+            .input-row, .input-row-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Dialog Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section h3 {
+            font-size: 1.1rem;
+            color: var(--accent);
+            margin-bottom: 12px;
+        }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .modal-field {
+            padding: 12px;
+            background: var(--bg-input);
+            border-radius: 8px;
+        }
+
+        .modal-field-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .modal-field-value {
+            font-size: 1rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .modal-signature {
+            width: 100%;
+            max-width: 400px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
+        .modal-footer {
+            padding: 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-modal-delete {
+            flex: 1;
+            padding: 12px;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-modal-delete:hover {
+            background: #b91c1c;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+
+        const STORAGE_KEY = 'tech_inspections';
+        
+        // Get settlement from localStorage (set by index.html)
+        const getSettlement = () => {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) {
+                const settlement = JSON.parse(saved);
+                return settlement.name;
+            }
+            return 'פני קדם'; // Default
+        };
+
+        const App = () => {
+    const SETTLEMENT = getSettlement();
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    // Check if user is logged in
+    useEffect(() => {
+        const unsubscribe = window.onAuthStateChanged(window.auth, (currentUser) => {
+            if (!currentUser) {
+                // Not logged in - redirect to login
+                window.location.href = 'index.html';
+                return;
+            }
+            setUser(currentUser);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // Show loading screen
+    if (loading) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--bg-dark)',
+                color: 'var(--text-primary)',
+                fontSize: '1.5rem'
+            }}>
+                ⏳ טוען...
+            </div>
+        );
+    }
+            const [activeTab, setActiveTab] = useState('new');
+            const [inspections, setInspections] = useState([]);
+            const [toast, setToast] = useState('');
+            const [selectedInspection, setSelectedInspection] = useState(null);
+
+            // New inspection form
+            const [newInspection, setNewInspection] = useState({
+                date: '',
+                time: '',
+                door: '',
+                windows: '',
+                siren: '',
+                dialer: '',
+                camera: '',
+                notes: '',
+                inspectorName: '',
+                inspectorId: ''
+            });
+
+            const signatureCanvasRef = useRef(null);
+            const [isDrawing, setIsDrawing] = useState(false);
+
+            // Load inspections from Firebase
+useEffect(() => {
+    if (!user) return;
+
+    const inspectionsRef = window.dbRef(window.database, `users/${user.uid}/inspections_tech`);
+    const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const inspectionsArray = Object.keys(data).map(key => ({
+                id: key,
+                ...data[key]
+            }));
+            setInspections(inspectionsArray);
+        } else {
+            setInspections([]);
+        }
+    });
+
+    return () => unsubscribe();
+}, [user]);
+
+            // Load inspector details from localStorage
+            useEffect(() => {
+                const savedInspector = localStorage.getItem('tech_inspector_details');
+                if (savedInspector) {
+                    const inspector = JSON.parse(savedInspector);
+                    setNewInspection(prev => ({
+                        ...prev,
+                        inspectorName: inspector.name || '',
+                        inspectorId: inspector.id || ''
+                    }));
+                }
+            }, []);
+
+            // Save inspector details to localStorage when changed
+            useEffect(() => {
+                if (newInspection.inspectorName || newInspection.inspectorId) {
+                    localStorage.setItem('tech_inspector_details', JSON.stringify({
+                        name: newInspection.inspectorName,
+                        id: newInspection.inspectorId
+                    }));
+                }
+            }, [newInspection.inspectorName, newInspection.inspectorId]);
+
+            // Set default date/time
+            useEffect(() => {
+                const now = new Date();
+                const today = now.toISOString().split('T')[0];
+                const currentTime = now.toTimeString().slice(0, 5);
+                setNewInspection(prev => ({
+                    ...prev,
+                    date: today,
+                    time: currentTime
+                }));
+            }, []);
+
+            // Signature canvas setup
+            useEffect(() => {
+                const canvas = signatureCanvasRef.current;
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            }, []);
+
+            const showToast = (message) => {
+                setToast(message);
+                setTimeout(() => setToast(''), 3000);
+            };
+
+            const startDrawing = (e) => {
+                const canvas = signatureCanvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                
+                // Get exact position considering canvas size vs display size
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+                
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                setIsDrawing(true);
+            };
+
+            const draw = (e) => {
+                if (!isDrawing) return;
+                
+                e.preventDefault();
+                const canvas = signatureCanvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const rect = canvas.getBoundingClientRect();
+                
+                // Get exact position considering canvas size vs display size
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                
+                const x = (clientX - rect.left) * scaleX;
+                const y = (clientY - rect.top) * scaleY;
+                
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            };
+
+            const stopDrawing = () => {
+                setIsDrawing(false);
+            };
+
+            const clearSignature = () => {
+                const canvas = signatureCanvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            };
+
+            const saveInspection = () => {
+                if (!newInspection.date || !newInspection.time) {
+                    showToast('יש למלא תאריך ושעה');
+                    return;
+                }
+
+                if (!newInspection.inspectorName || !newInspection.inspectorId) {
+                    showToast('יש למלא פרטי מבקר');
+                    return;
+                }
+
+                const signatureCanvas = signatureCanvasRef.current;
+                const signatureData = signatureCanvas.toDataURL('image/png');
+
+                const inspection = {
+                    id: Date.now(),
+                    settlement: SETTLEMENT,
+                    ...newInspection,
+                    signature: signatureData,
+                    createdAt: new Date().toISOString()
+                };
+// Save to Firebase
+const inspectionsRef = window.dbRef(window.database, `users/${user.uid}/inspections_tech`);
+const newInspectionRef = window.dbPush(inspectionsRef);
+window.dbSet(newInspectionRef, {
+    ...inspection,
+    id: newInspectionRef.key
+})
+.then(() => {
+    showToast('✅ הביקורת נשמרה בהצלחה!');
+})
+.catch((error) => {
+    console.error('Error:', error);
+    showToast('❌ שגיאה בשמירה');
+});
+
+                // Reset form (keep inspector details)
+                const inspectorName = newInspection.inspectorName;
+                const inspectorId = newInspection.inspectorId;
+                
+                const now = new Date();
+                setNewInspection({
+                    date: now.toISOString().split('T')[0],
+                    time: now.toTimeString().slice(0, 5),
+                    door: '',
+                    windows: '',
+                    siren: '',
+                    dialer: '',
+                    camera: '',
+                    notes: '',
+                    inspectorName,
+                    inspectorId
+                });
+                clearSignature();
+                setActiveTab('list');
+            };
+
+            const deleteInspection = (id) => {
+    if (confirm('האם למחוק ביקורת זו?')) {
+        const inspectionRef = window.dbRef(window.database, `users/${user.uid}/inspections_tech/${id}`);
+        window.dbRemove(inspectionRef)
+            .then(() => {
+                showToast('✅ הביקורת נמחקה');
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                showToast('❌ שגיאה במחיקה');
+            });
+    }
+};
+
+            const generatePDF = async () => {
+                if (inspections.length === 0) {
+                    showToast('אין ביקורות להפיק');
+                    return;
+                }
+
+                // Group inspections by month/year
+                const grouped = {};
+                inspections.forEach(insp => {
+                    const date = new Date(insp.date);
+                    const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
+                    if (!grouped[key]) {
+                        grouped[key] = [];
+                    }
+                    grouped[key].push(insp);
+                });
+
+                // Sort each group by date
+                Object.keys(grouped).forEach(key => {
+                    grouped[key].sort((a, b) => new Date(a.date) - new Date(b.date));
+                });
+
+                // Get month name in Hebrew
+                const monthNames = ['', 'ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 
+                                   'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+
+                // Generate PDF for each month
+                for (const key of Object.keys(grouped)) {
+                    const [year, month] = key.split('-');
+                    const monthName = monthNames[parseInt(month)];
+                    const monthInspections = grouped[key];
+
+                    try {
+                        showToast(`מפיק דוח: ${SETTLEMENT} - ${monthName} ${year} (${monthInspections.length} ביקורות)`);
+                        
+                        // Load PDF template
+                        const templateUrl = './tech_inspection_template.pdf';
+                        const templateBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
+                        const pdfDoc = await PDFLib.PDFDocument.load(templateBytes);
+                        const form = pdfDoc.getForm();
+
+                        // Register fontkit and load Hebrew font
+                        if (!window.fontkit) {
+                            throw new Error('fontkit not loaded');
+                        }
+                        pdfDoc.registerFontkit(window.fontkit);
+
+                        // Load local Hebrew font - EFT Aderet
+                        const fontRes = await fetch('./EFT_Aderet.ttf');
+                        const hebFontBytes = await fontRes.arrayBuffer();
+                        const hebFont = await pdfDoc.embedFont(hebFontBytes, { subset: true });
+
+                        // Fill header
+                        const settlementField = form.getTextField('settlement');
+                        settlementField.setText(SETTLEMENT);
+                        settlementField.setAlignment(PDFLib.TextAlignment.Center);
+                        
+                        const monthField = form.getTextField('month');
+                        monthField.setText(monthName);
+                        monthField.setAlignment(PDFLib.TextAlignment.Center);
+                        
+                        const yearField = form.getTextField('year');
+                        yearField.setText(year);
+                        yearField.setAlignment(PDFLib.TextAlignment.Center);
+
+                        // Fill rows
+                        for (let index = 0; index < monthInspections.length && index < 25; index++) {
+                            const insp = monthInspections[index];
+                            const rowNum = index + 1;
+
+                            form.getTextField(`row_${rowNum}_date`).setText(insp.date);
+                            form.getTextField(`row_${rowNum}_time`).setText(insp.time);
+                            form.getTextField(`row_${rowNum}_door`).setText(insp.door || '');
+                            form.getTextField(`row_${rowNum}_windows`).setText(insp.windows || '');
+                            form.getTextField(`row_${rowNum}_siren`).setText(insp.siren || '');
+                            form.getTextField(`row_${rowNum}_dialer`).setText(insp.dialer || '');
+                            form.getTextField(`row_${rowNum}_camera`).setText(insp.camera || '');
+                            form.getTextField(`row_${rowNum}_notes`).setText(insp.notes || '');
+                            form.getTextField(`row_${rowNum}_inspector_name`).setText(insp.inspectorName);
+                            form.getTextField(`row_${rowNum}_inspector_id`).setText(insp.inspectorId);
+
+                            // Add signature
+                            if (insp.signature) {
+                                try {
+                                    // Get signature field position
+                                    const signatureField = form.getTextField(`row_${rowNum}_signature`);
+                                    const widgets = signatureField.acroField.getWidgets();
+                                    
+                                    if (widgets.length > 0) {
+                                        const widget = widgets[0];
+                                        const rect = widget.getRectangle();
+                                        
+                                        // Embed signature image
+                                        const signatureBytes = await fetch(insp.signature).then(res => res.arrayBuffer());
+                                        const signatureImg = await pdfDoc.embedPng(signatureBytes);
+                                        
+                                        // Draw signature on the page
+                                        const pages = pdfDoc.getPages();
+                                        const page = pages[0];
+                                        page.drawImage(signatureImg, {
+                                            x: rect.x,
+                                            y: rect.y,
+                                            width: rect.width,
+                                            height: rect.height
+                                        });
+                                    }
+                                } catch (e) {
+                                    console.error('Error adding signature:', e);
+                                }
+                            }
+                        }
+
+                        // Update field appearances with Hebrew font
+                        form.updateFieldAppearances(hebFont);
+                        
+                        // Increase font size for better visibility
+                        const allFields = form.getFields();
+                        allFields.forEach(field => {
+                            try {
+                                if (field.constructor.name === 'PDFTextField') {
+                                    field.setFontSize(11); // גודל פונט גדול יותר
+                                }
+                            } catch (e) {
+                                // Skip fields that don't support font size
+                            }
+                        });
+
+                        // Save and download
+                        const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
+                        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                        const url = URL.createObjectURL(blob);
+                        
+                        // Open in new tab
+                        window.open(url, '_blank');
+                        
+                        // Also download
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `ביקורת_מערכות_${SETTLEMENT}_${monthName}_${year}.pdf`;
+                        a.click();
+
+                        showToast(`✅ PDF נוצר: ${monthName} ${year}`);
+                    } catch (error) {
+                        console.error('Error generating PDF:', error);
+                        showToast(`❌ שגיאה ביצירת PDF: ${error.message}`);
+                    }
+                }
+            };
+
+            const formatDate = (dateStr) => {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('he-IL');
+            };
+
+            const getStatusColor = (value) => {
+                if (value === 'תקין') return 'status-ok';
+                if (value === 'לא תקין') return 'status-fault';
+                return '';
+            };
+
+            return (
+                <div className="app-container">
+                    <div className="header">
+                        <button 
+                            onClick={() => window.location.href = 'index.html'}
+                            style={{
+                                position: 'absolute',
+                                top: '16px',
+                                right: '16px',
+                                background: 'rgba(255,255,255,0.2)',
+                                border: 'none',
+                                color: 'white',
+                                padding: '8px 16px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.3s',
+                                zIndex: 100
+                            }}
+                            onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+                            onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                        >
+                            🏠 חזור
+                        </button>
+                        <div className="header-content">
+                            <h1>🛡️ ביקורת מערכות טכנולוגיות</h1>
+                            <p>{SETTLEMENT}</p>
+                        </div>
+                    </div>
+
+                    <div className="nav-tabs">
+                        <button
+                            className={`nav-tab ${activeTab === 'new' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('new')}
+                        >
+                            ➕ ביקורת חדשה
+                        </button>
+                        <button
+                            className={`nav-tab ${activeTab === 'list' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('list')}
+                        >
+                            📋 ביקורות ({inspections.length})
+                        </button>
+                    </div>
+
+                    {activeTab === 'list' && (
+                        <>
+                            <div className="form-card">
+                                {inspections.length === 0 ? (
+                                    <div className="empty-state">
+                                        <div className="empty-state-icon">📭</div>
+                                        <div>אין ביקורות</div>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <button className="btn-secondary" onClick={generatePDF}>
+                                            📄 הפק דוחות PDF
+                                        </button>
+                                        <div className="inspection-list">
+                                            {inspections
+                                                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                                .map(insp => (
+                                            <div 
+                                                key={insp.id} 
+                                                className="inspection-item"
+                                                onClick={() => setSelectedInspection(insp)}
+                                                style={{cursor: 'pointer'}}
+                                            >
+                                                <div className="inspection-item-header">
+                                                    <div className="inspection-item-date">
+                                                        {formatDate(insp.date)} | {insp.time}
+                                                    </div>
+                                                </div>
+                                                <div className="inspection-item-info">
+                                                    מבקר: {insp.inspectorName} | מ.א: {insp.inspectorId}
+                                                </div>
+                                                <div className="inspection-item-info">
+                                                    <span className={`inspection-item-status ${getStatusColor(insp.door)}`}>
+                                                        דלת: {insp.door || '-'}
+                                                    </span>
+                                                    {' '}
+                                                    <span className={`inspection-item-status ${getStatusColor(insp.windows)}`}>
+                                                        חלונות: {insp.windows || '-'}
+                                                    </span>
+                                                    {' '}
+                                                    <span className={`inspection-item-status ${getStatusColor(insp.camera)}`}>
+                                                        מצלמה: {insp.camera || '-'}
+                                                    </span>
+                                                </div>
+                                                {insp.notes && (
+                                                    <div className="inspection-item-info">
+                                                        הערות: {insp.notes}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {activeTab === 'new' && (
+                        <div className="form-card">
+                            <div className="form-section">
+                                <h3>תאריך ושעה</h3>
+                                <div className="input-row">
+                                    <div className="input-group">
+                                        <label>תאריך *</label>
+                                        <input
+                                            type="date"
+                                            value={newInspection.date}
+                                            onChange={(e) => setNewInspection({...newInspection, date: e.target.value})}
+                                        />
+                                    </div>
+                                    <div className="input-group">
+                                        <label>שעה *</label>
+                                        <input
+                                            type="time"
+                                            value={newInspection.time}
+                                            onChange={(e) => setNewInspection({...newInspection, time: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>אזעקה</h3>
+                                <div className="input-row">
+                                    <div className="input-group">
+                                        <label>דלת</label>
+                                        <select value={newInspection.door} onChange={(e) => setNewInspection({...newInspection, door: e.target.value})}>
+                                            <option value="">בחר</option>
+                                            <option value="תקין">תקין</option>
+                                            <option value="לא תקין">לא תקין</option>
+                                        </select>
+                                    </div>
+                                    <div className="input-group">
+                                        <label>חלונות</label>
+                                        <select value={newInspection.windows} onChange={(e) => setNewInspection({...newInspection, windows: e.target.value})}>
+                                            <option value="">בחר</option>
+                                            <option value="תקין">תקין</option>
+                                            <option value="לא תקין">לא תקין</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="input-row">
+                                    <div className="input-group">
+                                        <label>צופר ומערכת כריזה</label>
+                                        <select value={newInspection.siren} onChange={(e) => setNewInspection({...newInspection, siren: e.target.value})}>
+                                            <option value="">בחר</option>
+                                            <option value="תקין">תקין</option>
+                                            <option value="לא תקין">לא תקין</option>
+                                        </select>
+                                    </div>
+                                    <div className="input-group">
+                                        <label>חייגן אוטומטי</label>
+                                        <select value={newInspection.dialer} onChange={(e) => setNewInspection({...newInspection, dialer: e.target.value})}>
+                                            <option value="">בחר</option>
+                                            <option value="תקין">תקין</option>
+                                            <option value="לא תקין">לא תקין</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>מצלמה</h3>
+                                <div className="input-group">
+                                    <label>מצלמה שידור תקין לחמ"ל</label>
+                                    <select value={newInspection.camera} onChange={(e) => setNewInspection({...newInspection, camera: e.target.value})}>
+                                        <option value="">בחר</option>
+                                        <option value="תקין">תקין</option>
+                                        <option value="לא תקין">לא תקין</option>
+                                        <option value="לא רלוונטי">לא רלוונטי</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>הערות</h3>
+                                <div className="input-group">
+                                    <textarea
+                                        value={newInspection.notes}
+                                        onChange={(e) => setNewInspection({...newInspection, notes: e.target.value})}
+                                        placeholder="הערות כלליות"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>פרטי המבקר</h3>
+                                <div className="input-group">
+                                    <label>שם ומשפחה *</label>
+                                    <input
+                                        type="text"
+                                        value={newInspection.inspectorName}
+                                        onChange={(e) => setNewInspection({...newInspection, inspectorName: e.target.value})}
+                                        placeholder="שם מלא"
+                                    />
+                                </div>
+                                <div className="input-group">
+                                    <label>מ.א. *</label>
+                                    <input
+                                        type="text"
+                                        value={newInspection.inspectorId}
+                                        onChange={(e) => setNewInspection({...newInspection, inspectorId: e.target.value})}
+                                        placeholder="מספר אישי"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="form-section">
+                                <h3>חתימה *</h3>
+                                <div className="signature-container">
+                                    <canvas
+                                        ref={signatureCanvasRef}
+                                        className="signature-canvas"
+                                        width={600}
+                                        height={150}
+                                        onMouseDown={startDrawing}
+                                        onMouseMove={draw}
+                                        onMouseUp={stopDrawing}
+                                        onMouseLeave={stopDrawing}
+                                        onTouchStart={startDrawing}
+                                        onTouchMove={draw}
+                                        onTouchEnd={stopDrawing}
+                                    />
+                                    <div className="signature-controls">
+                                        <button className="btn-clear-signature" onClick={clearSignature}>
+                                            🗑️ נקה חתימה
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button className="btn-primary" onClick={saveInspection}>
+                                <span>💾</span>
+                                <span>שמור ביקורת</span>
+                            </button>
+                        </div>
+                    )}
+
+                    {toast && <div className="toast">{toast}</div>}
+
+                    {selectedInspection && (
+                        <div className="modal-overlay" onClick={() => setSelectedInspection(null)}>
+                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="modal-header">
+                                    <h2>פרטי ביקורת</h2>
+                                    <button className="modal-close" onClick={() => setSelectedInspection(null)}>×</button>
+                                </div>
+                                
+                                <div className="modal-body">
+                                    <div className="modal-section">
+                                        <h3>תאריך ושעה</h3>
+                                        <div className="modal-grid">
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">תאריך</div>
+                                                <div className="modal-field-value">{formatDate(selectedInspection.date)}</div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">שעה</div>
+                                                <div className="modal-field-value">{selectedInspection.time}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="modal-section">
+                                        <h3>אזעקה</h3>
+                                        <div className="modal-grid">
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">דלת</div>
+                                                <div className={`modal-field-value ${getStatusColor(selectedInspection.door)}`}>
+                                                    {selectedInspection.door}
+                                                </div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">חלונות</div>
+                                                <div className={`modal-field-value ${getStatusColor(selectedInspection.windows)}`}>
+                                                    {selectedInspection.windows}
+                                                </div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">צופר ומערכת כריזה</div>
+                                                <div className={`modal-field-value ${getStatusColor(selectedInspection.siren)}`}>
+                                                    {selectedInspection.siren}
+                                                </div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">חייגן אוטומטי</div>
+                                                <div className={`modal-field-value ${getStatusColor(selectedInspection.dialer)}`}>
+                                                    {selectedInspection.dialer}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="modal-section">
+                                        <h3>מצלמה</h3>
+                                        <div className="modal-field">
+                                            <div className="modal-field-label">שידור תקין לחמ"ל</div>
+                                            <div className={`modal-field-value ${getStatusColor(selectedInspection.camera)}`}>
+                                                {selectedInspection.camera}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {selectedInspection.notes && (
+                                        <div className="modal-section">
+                                            <h3>הערות</h3>
+                                            <div className="modal-field">
+                                                <div className="modal-field-value">{selectedInspection.notes}</div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="modal-section">
+                                        <h3>מבקר</h3>
+                                        <div className="modal-grid">
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">שם ומשפחה</div>
+                                                <div className="modal-field-value">{selectedInspection.inspectorName}</div>
+                                            </div>
+                                            <div className="modal-field">
+                                                <div className="modal-field-label">מספר אישי</div>
+                                                <div className="modal-field-value">{selectedInspection.inspectorId}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {selectedInspection.signature && (
+                                        <div className="modal-section">
+                                            <h3>חתימה</h3>
+                                            <img 
+                                                src={selectedInspection.signature} 
+                                                alt="חתימה" 
+                                                className="modal-signature"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="modal-footer">
+                                    <button 
+                                        className="btn-modal-delete"
+                                        onClick={() => {
+                                            deleteInspection(selectedInspection.id);
+                                            setSelectedInspection(null);
+                                        }}
+                                    >
+                                        🗑️ מחק ביקורת
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
