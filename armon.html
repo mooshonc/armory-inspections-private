@@ -1149,20 +1149,6 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                 }
             };
 
-            const deleteInspection = (id) => {
-                if (confirm('האם למחוק ביקורת זו?')) {
-                    const inspectionRef = window.dbRef(window.database, `users/${user.uid}/inspections_armon/${id}`);
-                    window.dbRemove(inspectionRef)
-                        .then(() => {
-                            showToast('✅ הביקורת נמחקה');
-                        })
-                        .catch((error) => {
-                            console.error('Error:', error);
-                            showToast('❌ שגיאה במחיקה');
-                        });
-                }
-            };
-
             const formatDate = (dateStr) => {
                 const d = new Date(dateStr);
                 return d.toLocaleDateString('he-IL');
