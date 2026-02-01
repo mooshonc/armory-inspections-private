@@ -581,12 +581,12 @@
                         }
                     } else {
                         // Default settlement
-                        const defaultSettlements = [{ id: 'pnei_kedem', name: 'פני קדם' }];
+                        const defaultSettlements = [{ id: 'pnei_kedem', name: 'פני_קדם' }];
                         setSettlements(defaultSettlements);
                         setSelectedSettlement('pnei_kedem');
                         // Save to Firebase
                         window.dbSet(window.dbRef(window.database, `users/${user.uid}/settlements/pnei_kedem`), {
-                            name: 'פני קדם'
+                            name: 'פני_קדם'
                         });
                     }
                 });
