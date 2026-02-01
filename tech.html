@@ -12,31 +12,41 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-        import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+    import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+    import { getStorage, ref as storageRef, uploadString, getDownloadURL } 
+      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-            authDomain: "armory-inspections-private.firebaseapp.com",
-            databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "armory-inspections-private",
-            storageBucket: "armory-inspections-private.firebasestorage.app",
-            messagingSenderId: "415528668284",
-            appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-        };
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+        authDomain: "armory-inspections-private.firebaseapp.com",
+        databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "armory-inspections-private",
+        storageBucket: "armory-inspections-private.firebasestorage.app",
+        messagingSenderId: "415528668284",
+        appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+    };
 
-        const app = initializeApp(firebaseConfig);
-        window.auth = getAuth(app);
-        window.database = getDatabase(app);
-        window.onAuthStateChanged = onAuthStateChanged;
-        window.dbRef = ref;
-        window.dbPush = push;
-        window.dbSet = set;
-        window.dbOnValue = onValue;
-        window.dbRemove = remove;
-    </script>
+    const app = initializeApp(firebaseConfig);
+
+    window.auth = getAuth(app);
+    window.database = getDatabase(app);
+    window.onAuthStateChanged = onAuthStateChanged;
+    window.dbRef = ref;
+    window.dbPush = push;
+    window.dbSet = set;
+    window.dbOnValue = onValue;
+    window.dbRemove = remove;
+
+    // Storage
+    window.storage = getStorage(app);
+    window.storageRef = storageRef;
+    window.uploadString = uploadString;
+    window.getDownloadURL = getDownloadURL;
+</script>
+
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -816,7 +826,7 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             };
 
-            const saveInspection = () => {
+            const saveInspection = async () => {
                 if (!newInspection.date || !newInspection.time) {
                     showToast('יש למלא תאריך ושעה');
                     return;
@@ -829,12 +839,19 @@
 
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
+// העלאת חתימה ל-Storage והמרה ל-URL
+const SETTLEMENT_KEY = (SETTLEMENT || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+const sigPath = `signatures/${SETTLEMENT_KEY}/tech/${user.uid}/${Date.now()}.png`;
+const sigRef = window.storageRef(window.storage, sigPath);
+
+await window.uploadString(sigRef, signatureData, 'data_url');
+const signatureUrl = await window.getDownloadURL(sigRef);
 
                 const inspection = {
     id: Date.now(),
     settlement: SETTLEMENT,
     ...newInspection,
-    signature: signatureData,
+    signatureUrl,
     createdAt: new Date().toISOString(),
     createdBy: user.uid
 };
@@ -875,19 +892,29 @@ window.dbSet(newInspectionRef, {
                 setActiveTab('list');
             };
 
-            const deleteInspection = (id) => {
-    if (confirm('האם למחוק ביקורת זו?')) {
-        const inspectionRef = window.dbRef(window.database, `users/${user.uid}/inspections_tech/${id}`);
-        window.dbRemove(inspectionRef)
-            .then(() => {
-                showToast('✅ הביקורת נמחקה');
-            })
-            .catch((error) => {
-                console.error('Error:', error);
-                showToast('❌ שגיאה במחיקה');
-            });
-    }
+            const toKey = (s) =>
+  String(s || '')
+    .trim()
+    .replace(/[.#$[\]/]/g, '-')   // תווים אסורים ב-RTDB
+    .replace(/\s+/g, '_');        // רווחים -> _
+
+const deleteInspection = (id) => {
+  if (confirm('האם למחוק ביקורת זו?')) {
+    const SETTLEMENT_KEY = toKey(SETTLEMENT);
+    const inspectionRef = window.dbRef(
+      window.database,
+      `settlements/${SETTLEMENT_KEY}/tech_inspections/${id}`
+    );
+
+    window.dbRemove(inspectionRef)
+      .then(() => showToast('✅ הביקורת נמחקה'))
+      .catch((error) => {
+        console.error('Error:', error);
+        showToast('❌ שגיאה במחיקה');
+      });
+  }
 };
+
 
             const generatePDF = async () => {
                 if (inspections.length === 0) {

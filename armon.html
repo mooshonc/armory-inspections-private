@@ -13,31 +13,41 @@
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-        import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
+    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+    import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
+    import { getStorage, ref as storageRef, uploadString, getDownloadURL } 
+      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-            authDomain: "armory-inspections-private.firebaseapp.com",
-            databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "armory-inspections-private",
-            storageBucket: "armory-inspections-private.firebasestorage.app",
-            messagingSenderId: "415528668284",
-            appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-        };
+    const firebaseConfig = {
+        apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+        authDomain: "armory-inspections-private.firebaseapp.com",
+        databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "armory-inspections-private",
+        storageBucket: "armory-inspections-private.firebasestorage.app",
+        messagingSenderId: "415528668284",
+        appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+    };
 
-        const app = initializeApp(firebaseConfig);
-        window.auth = getAuth(app);
-        window.database = getDatabase(app);
-        window.onAuthStateChanged = onAuthStateChanged;
-        window.dbRef = ref;
-        window.dbPush = push;
-        window.dbSet = set;
-        window.dbOnValue = onValue;
-        window.dbRemove = remove;
-    </script>
+    const app = initializeApp(firebaseConfig);
+
+    window.auth = getAuth(app);
+    window.database = getDatabase(app);
+    window.onAuthStateChanged = onAuthStateChanged;
+    window.dbRef = ref;
+    window.dbPush = push;
+    window.dbSet = set;
+    window.dbOnValue = onValue;
+    window.dbRemove = remove;
+
+    // Storage
+    window.storage = getStorage(app);
+    window.storageRef = storageRef;
+    window.uploadString = uploadString;
+    window.getDownloadURL = getDownloadURL;
+</script>
+
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -912,7 +922,7 @@ const inspectionsRef = window.dbRef(
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             };
 
-            const saveInspection = () => {
+            const saveInspection = async () => {
                 if (!inspectionType) {
                     showToast('יש לבחור סוג ביקורת');
                     return false;
@@ -925,6 +935,13 @@ const inspectionsRef = window.dbRef(
 
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
+// העלאת חתימה ל-Storage והמרה ל-URL
+const SETTLEMENT_KEY = (SETTLEMENT || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+const sigPath = `signatures/${SETTLEMENT_KEY}/armon/${user.uid}/${Date.now()}.png`;
+const sigRef = window.storageRef(window.storage, sigPath);
+
+await window.uploadString(sigRef, signatureData, 'data_url');
+const signatureUrl = await window.getDownloadURL(sigRef);
 
                 const newInspection = {
     type: inspectionType,
@@ -932,7 +949,7 @@ const inspectionsRef = window.dbRef(
     time,
     items: {...items},
     officer: {...officer},
-    signature: signatureData,
+    signatureUrl,
     createdAt: new Date().toISOString(),
     createdBy: user.uid
 };
