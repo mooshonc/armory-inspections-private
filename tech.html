@@ -690,15 +690,19 @@
     useEffect(() => {
         if (!user) return;
 
-        const inspectionsRef = window.dbRef(window.database, `settlements/${SETTLEMENT}/tech_inspections`
+        const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+const SETTLEMENT_KEY = toKey(getSettlement());
+
+const inspectionsRef = window.dbRef(
+  window.database,
+  `settlements/${SETTLEMENT_KEY}/tech_inspections`
 );
+
         const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.val();
-                const inspectionsArray = Object.keys(data).map(key => ({
-                    id: key,
-                    ...data[key]
-                }));
+                const inspectionsArray = Object.keys(data).map(key => ({ ...data[key], id: key }
+));
                 setInspections(inspectionsArray);
             } else {
                 setInspections([]);
