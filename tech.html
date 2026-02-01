@@ -673,23 +673,6 @@
         return () => unsubscribe();
     }, []);
 
-    // Show loading screen
-    if (loading) {
-        return (
-            <div style={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--bg-dark)',
-                color: 'var(--text-primary)',
-                fontSize: '1.5rem'
-            }}>
-                ⏳ טוען...
-            </div>
-        );
-    }
-
     // Load inspections from Firebase
     useEffect(() => {
         if (!user) return;
@@ -711,52 +694,69 @@
         return () => unsubscribe();
     }, [user]);
 
-            // Load inspector details from localStorage
-            useEffect(() => {
-                const savedInspector = localStorage.getItem('tech_inspector_details');
-                if (savedInspector) {
-                    const inspector = JSON.parse(savedInspector);
-                    setNewInspection(prev => ({
-                        ...prev,
-                        inspectorName: inspector.name || '',
-                        inspectorId: inspector.id || ''
-                    }));
-                }
-            }, []);
+    // Load inspector details from localStorage
+    useEffect(() => {
+        const savedInspector = localStorage.getItem('tech_inspector_details');
+        if (savedInspector) {
+            const inspector = JSON.parse(savedInspector);
+            setNewInspection(prev => ({
+                ...prev,
+                inspectorName: inspector.name || '',
+                inspectorId: inspector.id || ''
+            }));
+        }
+    }, []);
 
-            // Save inspector details to localStorage when changed
-            useEffect(() => {
-                if (newInspection.inspectorName || newInspection.inspectorId) {
-                    localStorage.setItem('tech_inspector_details', JSON.stringify({
-                        name: newInspection.inspectorName,
-                        id: newInspection.inspectorId
-                    }));
-                }
-            }, [newInspection.inspectorName, newInspection.inspectorId]);
+    // Save inspector details to localStorage when changed
+    useEffect(() => {
+        if (newInspection.inspectorName || newInspection.inspectorId) {
+            localStorage.setItem('tech_inspector_details', JSON.stringify({
+                name: newInspection.inspectorName,
+                id: newInspection.inspectorId
+            }));
+        }
+    }, [newInspection.inspectorName, newInspection.inspectorId]);
 
-            // Set default date/time
-            useEffect(() => {
-                const now = new Date();
-                const today = now.toISOString().split('T')[0];
-                const currentTime = now.toTimeString().slice(0, 5);
-                setNewInspection(prev => ({
-                    ...prev,
-                    date: today,
-                    time: currentTime
-                }));
-            }, []);
+    // Set default date/time
+    useEffect(() => {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const currentTime = now.toTimeString().slice(0, 5);
+        setNewInspection(prev => ({
+            ...prev,
+            date: today,
+            time: currentTime
+        }));
+    }, []);
 
-            // Signature canvas setup
-            useEffect(() => {
-                const canvas = signatureCanvasRef.current;
-                if (!canvas) return;
+    // Signature canvas setup
+    useEffect(() => {
+        const canvas = signatureCanvasRef.current;
+        if (!canvas) return;
 
-                const ctx = canvas.getContext('2d');
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 2;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-            }, []);
+        const ctx = canvas.getContext('2d');
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+    }, []);
+
+    // Show loading screen
+    if (loading) {
+        return (
+            <div style={{
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--bg-dark)',
+                color: 'var(--text-primary)',
+                fontSize: '1.5rem'
+            }}>
+                ⏳ טוען...
+            </div>
+        );
+    }
 
             const showToast = (message) => {
                 setToast(message);
