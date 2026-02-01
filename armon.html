@@ -940,7 +940,9 @@ const inspectionsRef = window.dbRef(
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
 // העלאת חתימה ל-Storage והמרה ל-URL
-const SETTLEMENT_KEY = (SETTLEMENT || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+const SETTLEMENT_KEY = ((SETTLEMENT && String(SETTLEMENT).trim()) ? String(SETTLEMENT).trim() : 'פני_קדם')
+  .replace(/[.#$[\]/]/g, '-')
+  .replace(/\s+/g, '_');
 const sigPath = `signatures/${SETTLEMENT_KEY}/armon/${user.uid}/${Date.now()}.png`;
 const sigRef = window.storageRef(window.storage, sigPath);
 console.log('SETTLEMENT=', SETTLEMENT);
