@@ -701,7 +701,7 @@
             return { id: null, name: 'פני קדם', key: null };
         };
 
-        const App = () => {
+        function App() {
             const settlementMeta = getSettlementMeta();
             const SETTLEMENT = settlementMeta.name;
             const STORAGE_KEY = `${STORAGE_KEY_BASE}_${settlementMeta.id || settlementMeta.key || 'default'}`;
@@ -1454,7 +1454,7 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                     )}
                 </div>
             );
-        };
+        }
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
