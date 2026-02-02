@@ -488,7 +488,7 @@ const INSPECTIONS = [
             }
         };
 
-const App = () => {
+function App() {
             const [settlements, setSettlements] = useState(loadSettlements);
             const [selectedSettlement, setSelectedSettlement] = useState(loadSelectedSettlement);
             const [showAddModal, setShowAddModal] = useState(false);
@@ -816,7 +816,7 @@ const addSettlement = () => {
                     {toast && <div className="toast">{toast}</div>}
                 </div>
             );
-        };
+        }
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
