@@ -607,8 +607,10 @@ const addSettlement = () => {
             };
 
            const openInspection = async (type) => {
-            console.log("INDEX VERSION", "2026-02-02 09:15", "clicked", type);
+  console.log("openInspection start", type);
+
   const settlement = settlements.find(s => s.id === selectedSettlement);
+  console.log("selectedSettlement", selectedSettlement, "settlement", settlement);
   if (!settlement) return;
 
   if (!settlementPassword) {
@@ -617,17 +619,13 @@ const addSettlement = () => {
   }
 
   try {
-  await loginToSettlement(settlement, settlementPassword);
-} catch (e) {
-  console.error(e);
-  if (e.code === 'WEAK_PASSWORD') showToast('❌ סיסמה חייבת להיות לפחות 6 תווים');
-  else if (e.code === 'WRONG_PASSWORD') showToast('❌ סיסמה שגויה ליישוב הזה');
-  else showToast('❌ תקלה בהתחברות');
-  return;
-}
-
-
-  localStorage.setItem('currentSettlement', JSON.stringify(settlement));
+    await loginToSettlement(settlement, settlementPassword);
+    console.log("loginToSettlement ok");
+  } catch (e) {
+    console.error("loginToSettlement failed", e);
+    showToast('❌ שגיאה בהתחברות');
+    return;
+  }
 
   const pages = {
     armory: 'armory.html',
@@ -635,8 +633,11 @@ const addSettlement = () => {
     tech: 'tech.html'
   };
 
+  console.log("navigating to", pages[type], "type=", type);
+
   window.location.href = pages[type];
 };
+
 
 
             return (
