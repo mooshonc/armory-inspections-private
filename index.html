@@ -580,6 +580,7 @@ const addSettlement = () => {
     showToast('נא להזין סיסמת יישוב');
     return;
   }
+console.log('Settlement email:', email);
 
   try {
     await loginToSettlement(settlement.id, settlement.name, settlementPassword);
