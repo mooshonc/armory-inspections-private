@@ -520,7 +520,7 @@ const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/
 const loginToSettlement = async (settlementId, settlementName, password) => {
   const key = String(settlementId || '').trim().toLowerCase().replace(/\s+/g, '_');
   const email = `${key}@settlement.local`;
-
+console.log('Settlement email:', email);
   try {
     await window.signInWithEmailAndPassword(window.auth, email, password);
   } catch (e) {
@@ -580,7 +580,6 @@ const addSettlement = () => {
     showToast('נא להזין סיסמת יישוב');
     return;
   }
-console.log('Settlement email:', email);
 
   try {
     await loginToSettlement(settlement.id, settlement.name, settlementPassword);
