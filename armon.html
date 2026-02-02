@@ -952,24 +952,14 @@
 
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
-// העלאת חתימה ל-Storage והמרה ל-URL
-const sigPath = `signatures/${window.SETTLEMENT_KEY}/armon/${user.uid}/${Date.now()}.png`;
-console.log('sigPath=', sigPath);
-const sigRef = window.storageRef(window.storage, sigPath);
-console.log('SETTLEMENT=', SETTLEMENT);
-console.log('SETTLEMENT_KEY=', window.SETTLEMENT_KEY);
-console.log('sigPath=', sigPath);
-
-await window.uploadString(sigRef, signatureData, 'data_url');
-const signatureUrl = await window.getDownloadURL(sigRef);
-
+// Save signature directly in database as base64 (no Storage needed)
                 const newInspection = {
     type: inspectionType,
     date,
     time,
     items: {...items},
     officer: {...officer},
-    signatureUrl,
+    signature: signatureData,  // Store base64 directly
     createdAt: new Date().toISOString(),
     createdBy: user.uid
 };

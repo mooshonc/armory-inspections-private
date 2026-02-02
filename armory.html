@@ -745,30 +745,13 @@
         // All data is now synced directly to Firebase
 
         const saveInspection = async (data) => {
-            // Save to Firebase
+            // Save to Firebase - store images directly in database as base64
             const inspectionsRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/armory_inspections`);
             const newInspectionRef = window.dbPush(inspectionsRef);
             
-            // Upload photo and signature to Storage if they exist
-            let photoURL = null;
-            let signatureURL = null;
-            
-            if (data.photo) {
-                const photoRef = window.storageRef(window.storage, `armory_inspections/${newInspectionRef.key}/photo.png`);
-                await window.uploadString(photoRef, data.photo, 'data_url');
-                photoURL = await window.getDownloadURL(photoRef);
-            }
-            
-            if (data.signature) {
-                const signatureRef = window.storageRef(window.storage, `armory_inspections/${newInspectionRef.key}/signature.png`);
-                await window.uploadString(signatureRef, data.signature, 'data_url');
-                signatureURL = await window.getDownloadURL(signatureRef);
-            }
-            
+            // Keep photo and signature as base64 strings directly in the database
             await window.dbSet(newInspectionRef, {
                 ...data,
-                photo: photoURL,
-                signature: signatureURL,
                 createdAt: new Date().toISOString()
             });
             
@@ -778,7 +761,7 @@
         // getInspections is now handled by Firebase listener in useEffect
         
         const deleteInspection = async (id) => {
-            const inspectionRef = window.dbRef(window.database, `settlements/${SETTLEMENT_KEY}/armory_inspections/${id}`);
+            const inspectionRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/armory_inspections/${id}`);
             await window.dbRemove(inspectionRef);
         };
 
