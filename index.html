@@ -464,6 +464,11 @@ const INSPECTIONS = [
             const [toast, setToast] = useState('');
             const [deferredPrompt, setDeferredPrompt] = useState(null);
 const [settlementPassword, setSettlementPassword] = useState('');
+useEffect(() => {
+  if (!selectedSettlement && settlements.length > 0) {
+    setSelectedSettlement(settlements[0].id);
+  }
+}, [settlements, selectedSettlement]);
 
             // Capture install prompt
             useEffect(() => {
