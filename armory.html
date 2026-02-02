@@ -864,29 +864,6 @@
                 onSignatureChange(null);
             };
 
-            // Show loading screen while checking auth
-            if (authLoading || !user) {
-                return (
-                    <div className="app-container" style={{ 
-                        display: 'flex', 
-                        justifyContent: 'center', 
-                        alignItems: 'center', 
-                        minHeight: '100vh' 
-                    }}>
-                        <div style={{
-                            textAlign: 'center',
-                            padding: '40px',
-                            background: 'var(--bg-card)',
-                            borderRadius: '16px',
-                            boxShadow: 'var(--shadow-lg)'
-                        }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-                            <div style={{ fontSize: '20px', fontWeight: '600' }}>טוען...</div>
-                        </div>
-                    </div>
-                );
-            }
-
             return (
                 <div>
                     <div className="signature-container">
@@ -1441,7 +1418,32 @@ const deleteSettlementEntry = (id) => {
             const beforeCount = inspections.filter(i => i.type === 'before').length;
             const afterCount = inspections.filter(i => i.type === 'after').length;
 
-            // Settlement selection screen
+            // Show loading screen while checking auth
+            if (authLoading || !user) {
+                return (
+                    <div className="app-container" style={{ 
+                        display: 'flex', 
+                        justifyContent: 'center', 
+                        alignItems: 'center', 
+                        minHeight: '100vh' 
+                    }}>
+                        <div style={{
+                            textAlign: 'center',
+                            padding: '40px',
+                            background: 'var(--bg-card)',
+                            borderRadius: '16px',
+                            boxShadow: 'var(--shadow-lg)'
+                        }}>
+                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
+                            <div style={{ fontSize: '20px', fontWeight: '600' }}>טוען...</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Settlement selection screen - REMOVE THIS, go straight to form
+            // Users select settlement in index.html before coming here
+            /*
             if (!currentSettlement) {
                 return (
                     <div className="app-container">
@@ -1588,7 +1590,9 @@ const deleteSettlementEntry = (id) => {
                     </div>
                 );
             }
+            */
 
+            // Go straight to the main form
             return (
                 <div className="app-container">
                     <header className="header">
