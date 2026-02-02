@@ -531,10 +531,7 @@ const loginToSettlement = async (settlement, password) => {
   const email = `${key}@settlement.local`;
   const pass = String(password || '');
 
-  console.log('[loginToSettlement] name=', settlement?.name, 'id=', settlement?.id);
-  console.log('[loginToSettlement] email=', email);
-  console.log('[loginToSettlement] password length=', pass.length);
-  console.log('[loginToSettlement] create fn type=', typeof window.createUserWithEmailAndPassword);
+  console.log('[loginToSettlement] email=', email, 'passLen=', pass.length);
 
   if (pass.length < 6) {
     const err = new Error('WEAK_PASSWORD');
@@ -542,29 +539,27 @@ const loginToSettlement = async (settlement, password) => {
     throw err;
   }
 
-  // 1) ננסה להתחבר
+  // 1) קודם ננסה ליצור משתמש (פעם ראשונה ליישוב)
+  try {
+    await window.createUserWithEmailAndPassword(window.auth, email, pass);
+    console.log('[loginToSettlement] ✅ user created');
+  } catch (ce) {
+    // אם כבר קיים – זה תקין, נמשיך להתחבר
+    if (ce.code !== 'auth/email-already-in-use') {
+      console.log('[loginToSettlement] create error:', ce.code);
+      throw ce;
+    }
+  }
+
+  // 2) עכשיו נתחבר (או עם המשתמש החדש, או עם הקיים)
   try {
     await window.signInWithEmailAndPassword(window.auth, email, pass);
     console.log('[loginToSettlement] ✅ signIn success');
-  } catch (e) {
-    console.log('[loginToSettlement] signIn error:', e.code);
-
-    // 2) אם נכשל, ננסה ליצור משתמש (מתאים גם להגנות שמחזירות invalid-credential תמיד)
-    console.log('[loginToSettlement] attempting createUser...');
-    try {
-      await window.createUserWithEmailAndPassword(window.auth, email, pass);
-      console.log('[loginToSettlement] ✅ user created');
-    } catch (ce) {
-      console.log('[loginToSettlement] create error:', ce.code);
-
-      // אם כבר קיים — אז זו באמת סיסמה שגויה, נחזור ל-signIn כדי לקבל מצב התחברות עקבי
-      if (ce.code === 'auth/email-already-in-use') {
-        const err = new Error('WRONG_PASSWORD');
-        err.code = 'WRONG_PASSWORD';
-        throw err;
-      }
-      throw ce;
-    }
+  } catch (se) {
+    console.log('[loginToSettlement] signIn error:', se.code);
+    const err = new Error('WRONG_PASSWORD');
+    err.code = 'WRONG_PASSWORD';
+    throw err;
   }
 
   localStorage.setItem(
@@ -622,12 +617,15 @@ const addSettlement = () => {
   }
 
   try {
-    await loginToSettlement(settlement, settlementPassword);
-  } catch (e) {
-    console.error(e);
-    showToast('❌ סיסמה שגויה או תקלה בהתחברות');
-    return;
-  }
+  await loginToSettlement(settlement, settlementPassword);
+} catch (e) {
+  console.error(e);
+  if (e.code === 'WEAK_PASSWORD') showToast('❌ סיסמה חייבת להיות לפחות 6 תווים');
+  else if (e.code === 'WRONG_PASSWORD') showToast('❌ סיסמה שגויה ליישוב הזה');
+  else showToast('❌ תקלה בהתחברות');
+  return;
+}
+
 
   localStorage.setItem('currentSettlement', JSON.stringify(settlement));
 
