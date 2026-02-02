@@ -11,6 +11,63 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
+   <!-- Firebase SDK (TECH) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import {
+    getAuth,
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+  import {
+    getDatabase,
+    ref,
+    push,
+    set,
+    onValue,
+    remove
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  import {
+    getStorage,
+    ref as storageRef,
+    uploadString,
+    getDownloadURL
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+    authDomain: "armory-inspections-private.firebaseapp.com",
+    databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "armory-inspections-private",
+    storageBucket: "armory-inspections-private.firebasestorage.app",
+    messagingSenderId: "415528668284",
+    appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+  };
+
+  const app = initializeApp(firebaseConfig);
+
+  // Auth
+  window.auth = getAuth(app);
+  window.onAuthStateChanged = onAuthStateChanged;
+
+  // Realtime Database
+  window.database = getDatabase(app);
+  window.dbRef = ref;
+  window.dbPush = push;
+  window.dbSet = set;
+  window.dbOnValue = onValue;
+  window.dbRemove = remove;
+
+  // Storage
+  window.storage = getStorage(app);
+  window.storageRef = storageRef;
+  window.uploadString = uploadString;
+  window.getDownloadURL = getDownloadURL;
+
+  console.log("TECH firebase ready. currentUser=", window.auth.currentUser?.uid || null);
+</script>
+
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
