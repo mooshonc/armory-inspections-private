@@ -879,15 +879,14 @@
             const [showAddSettlement, setShowAddSettlement] = useState(false);
             const [newSettlementName, setNewSettlementName] = useState('');
             const [currentSettlement, setCurrentSettlement] = useState(() => {
-                // Get settlement from index.html
+                // Get settlement from index.html (stored as {name, key})
                 const saved = localStorage.getItem('currentSettlement');
                 if (saved) {
                     const settlement = JSON.parse(saved);
-                    return settlement.id;
+                    return settlement.name;  // Use name, not id
                 }
-                // Fallback to first settlement
-                const settlements = getSettlements();
-                return settlements[0]?.id || null;
+                // Fallback
+                return 'פני קדם';
             });
             const [activeTab, setActiveTab] = useState('new');
             const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -938,8 +937,7 @@
             
             // Get current settlement name
             const getSettlementName = () => {
-                const settlement = settlements.find(s => s.id === currentSettlement);
-                return settlement ? settlement.name : '';
+                return currentSettlement || 'פני קדם';
             };
             
             // Handle settlement selection
