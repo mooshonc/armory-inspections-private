@@ -384,30 +384,45 @@
         }
     </style>
     <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import {
+    getDatabase,
+    ref,
+    set,
+    onValue
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-  authDomain: "armory-inspections-private.firebaseapp.com",
-  databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "armory-inspections-private",
-  storageBucket: "armory-inspections-private.appspot.com",
-  messagingSenderId: "415528668284",
-  appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+    authDomain: "armory-inspections-private.firebaseapp.com",
+    databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "armory-inspections-private",
+    storageBucket: "armory-inspections-private.appspot.com",
+    messagingSenderId: "415528668284",
+    appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+  };
 
-const app = initializeApp(firebaseConfig);
-window.auth = getAuth(app);
-window.db = getDatabase(app);
-window.dbRef = ref;
-window.dbSet = set;
-window.dbOnValue = onValue;
-window.onAuthStateChanged = onAuthStateChanged;
+  const app = initializeApp(firebaseConfig);
 
-signInAnonymously(window.auth);
+  // Auth
+  window.auth = getAuth(app);
+  window.onAuthStateChanged = onAuthStateChanged;
+  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+  window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+
+  // Database
+  window.db = getDatabase(app);
+  window.dbRef = ref;
+  window.dbSet = set;
+  window.dbOnValue = onValue;
 </script>
+
 
 </head>
 <body>
@@ -423,6 +438,7 @@ signInAnonymously(window.auth);
             const [newSettlementName, setNewSettlementName] = useState('');
             const [toast, setToast] = useState('');
             const [deferredPrompt, setDeferredPrompt] = useState(null);
+const [settlementPassword, setSettlementPassword] = useState('');
 
             // Capture install prompt
             useEffect(() => {
@@ -471,11 +487,30 @@ signInAnonymously(window.auth);
             };
 
             const showToast = (message) => {
-                setToast(message);
-                setTimeout(() => setToast(''), 3000);
-            };
+  setToast(message);
+  setTimeout(() => setToast(''), 3000);
+};
 
-            const addSettlement = () => {
+const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+
+const loginToSettlement = async (settlementName, password) => {
+  const key = toKey(settlementName);
+  const email = `${key}@settlement.local`;
+
+  try {
+    await window.signInWithEmailAndPassword(window.auth, email, password);
+  } catch (e) {
+    if (e.code === 'auth/user-not-found') {
+      await window.createUserWithEmailAndPassword(window.auth, email, password);
+    } else {
+      throw e;
+    }
+  }
+
+  localStorage.setItem('currentSettlement', JSON.stringify({ name: settlementName, key }));
+};
+
+const addSettlement = () => {
   if (!newSettlementName.trim()) {
     showToast('נא להזין שם ישוב');
     return;
@@ -488,18 +523,11 @@ signInAnonymously(window.auth);
   setSettlements(updated);
   localStorage.setItem('settlements', JSON.stringify(updated));
 
-  // 🔥 סנכרון ל-Firebase
-  if (window.auth.currentUser) {
-    window.dbSet(
-      window.dbRef(window.db, `users/${window.auth.currentUser.uid}/settlements/${newId}`),
-      { name: newSettlement.name }
-    );
-  }
-
   setShowAddModal(false);
   setNewSettlementName('');
   showToast('✅ הישוב נוסף בהצלחה');
 };
+
 
 
             const deleteSettlement = () => {
@@ -519,46 +547,34 @@ signInAnonymously(window.auth);
                 showToast('✅ הישוב נמחק');
             };
 
-            const openInspection = (type) => {
-                const settlement = settlements.find(s => s.id === selectedSettlement);
-                if (!settlement) return;
+           const openInspection = async (type) => {
+  const settlement = settlements.find(s => s.id === selectedSettlement);
+  if (!settlement) return;
 
-                // Store selected settlement for the inspection app
-                localStorage.setItem('currentSettlement', JSON.stringify(settlement));
+  if (!settlementPassword) {
+    showToast('נא להזין סיסמת יישוב');
+    return;
+  }
 
-                // Navigate to inspection page
-                const pages = {
-                    armory: 'armory.html',
-                    armon: 'armon.html',
-                    tech: 'tech.html'
-                };
+  try {
+    await loginToSettlement(settlement.name, settlementPassword);
+  } catch (e) {
+    console.error(e);
+    showToast('❌ סיסמה שגויה או תקלה בהתחברות');
+    return;
+  }
 
-                window.location.href = pages[type];
-            };
+  localStorage.setItem('currentSettlement', JSON.stringify(settlement));
 
-            const inspections = [
-                {
-                    id: 'armory',
-                    icon: '🔫',
-                    title: 'לפני ואחרי חצות',
-                    subtitle: 'ביקורת נשקייה',
-                    description: 'ביקורת נשק לפני ואחרי חצות - בדיקת נשקים, תחמושת וציוד'
-                },
-                {
-                    id: 'armon',
-                    icon: '📦',
-                    title: 'מחסן ארמון',
-                    subtitle: 'ספירת מלאי',
-                    description: 'ביקורת פתיחה וסגירה של מחסן ארמון - ספירת ציוד צבאי'
-                },
-                {
-                    id: 'tech',
-                    icon: '🛡️',
-                    title: 'תקינות מערכות טכנולוגיות',
-                    subtitle: 'ביקורת יומית',
-                    description: 'בדיקת תקינות דלתות, חלונות, מצלמות ומערכות אזעקה'
-                }
-            ];
+  const pages = {
+    armory: 'armory.html',
+    armon: 'armon.html',
+    tech: 'tech.html'
+  };
+
+  window.location.href = pages[type];
+};
+
 
             return (
                 <div className="app-container">
@@ -609,6 +625,20 @@ signInAnonymously(window.auth);
                                 </option>
                             ))}
                         </select>
+                        <input
+  type="password"
+  placeholder="סיסמת יישוב"
+  value={settlementPassword}
+  onChange={(e) => setSettlementPassword(e.target.value)}
+  style={{
+    width: '100%',
+    padding: '10px',
+    marginTop: '10px',
+    borderRadius: '8px',
+    border: '1px solid #ccc'
+  }}
+/>
+
                         <div className="settlement-actions">
                             <button className="btn-manage btn-add" onClick={() => setShowAddModal(true)}>
                                 ➕ הוסף ישוב
