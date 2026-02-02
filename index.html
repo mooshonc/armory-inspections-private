@@ -544,10 +544,11 @@ const loginToSettlement = async (settlement, password) => {
     await window.signInWithEmailAndPassword(window.auth, email, pass);
     console.log('[loginToSettlement] ✅ signIn success');
   } catch (e) {
-    console.log('[loginToSettlement] signIn error:', e.code, e.message);
+  console.log('[loginToSettlement] signIn error:', e.code);
 
     // אם המשתמש לא קיים – ניצור אותו
     if (e.code === 'auth/user-not-found') {
+            console.log('[loginToSettlement] attempting createUser...');
       await window.createUserWithEmailAndPassword(window.auth, email, pass);
       console.log('[loginToSettlement] ✅ user created');
     } else {
