@@ -481,14 +481,19 @@ const [settlementPassword, setSettlementPassword] = useState('');
     if (!user) return;
 
     const settlementsRef = window.dbRef(window.db, `users/${user.uid}/settlements`);
-    window.dbOnValue(settlementsRef, snap => {
-      const data = snap.val();
-      if (data) {
-        const list = Object.entries(data).map(([id, val]) => ({ id, name: val.name }));
-        setSettlements(list);
-        setSelectedSettlement(list[0]?.id);
-      }
-    });
+   window.dbOnValue(settlementsRef, snap => {
+  const data = snap.val() || {};
+  const list = Object.entries(data).map(([id, val]) => ({
+    id,
+    name: (typeof val === 'string') ? val : val?.name
+  })).filter(x => x.id && x.name);
+
+  setSettlements(list);
+
+  // ✅ קבע ברירת מחדל רק אם אין כבר בחירה
+  setSelectedSettlement(prev => prev || list[0]?.id || '');
+});
+
   });
 }, []);
 
