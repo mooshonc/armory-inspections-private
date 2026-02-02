@@ -11,59 +11,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
-    
-    <!-- Firebase SDK -->
-<script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-    import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-    import { getStorage, ref as storageRef, uploadString, getDownloadURL } 
-      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-        authDomain: "armory-inspections-private.firebaseapp.com",
-        databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "armory-inspections-private",
-        storageBucket: "armory-inspections-private.firebasestorage.app",
-        messagingSenderId: "415528668284",
-        appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-    };
-
-    // Define helper functions before using them
-    const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-    const getSettlementObj = () => {
-        try {
-            const saved = localStorage.getItem('currentSettlement');
-            if (saved) return JSON.parse(saved);
-        } catch (e) {}
-        return { name: 'פני קדם', key: 'פני_קדם' };
-    };
-
-    const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
-
-    const app = initializeApp(firebaseConfig);
-
-    window.auth = getAuth(app);
-    window.database = getDatabase(app);
-    window.onAuthStateChanged = onAuthStateChanged;
-    window.dbRef = ref;
-    window.dbPush = push;
-    window.dbSet = set;
-    window.dbOnValue = onValue;
-    window.dbRemove = remove;
-
-    // Storage
-    window.storage = getStorage(app);
-    window.storageRef = storageRef;
-    window.uploadString = uploadString;
-    window.getDownloadURL = getDownloadURL;
-    
-    // Export settlement key for use in other scripts
-    window.SETTLEMENT_KEY = SETTLEMENT_KEY;
-</script>
-
-    
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -740,26 +687,24 @@
             { code: '100081954', name: 'אמר"ל "עכבר"' }
         ];
 
-        const STORAGE_KEY = 'armon_inspections';
+        const STORAGE_KEY_BASE = 'armon_inspections';
         
-        // Get settlement from localStorage (set by index.html)
-        const getSettlement = () => {
-  try {
-    const saved = localStorage.getItem('currentSettlement');
-    if (saved) {
-      const settlement = JSON.parse(saved);
-      if (settlement && settlement.name) return settlement.name;
-    }
-  } catch (e) {}
-  return 'פני_קדם';
-};
-
+        // Get settlement meta from localStorage (set by index.html)
+        const getSettlementMeta = () => {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) {
+                try {
+                    const s = JSON.parse(saved);
+                    return { id: s?.id || null, name: s?.name || 'פני קדם', key: s?.key || null };
+                } catch (e) {}
+            }
+            return { id: null, name: 'פני קדם', key: null };
+        };
 
         const App = () => {
-            const SETTLEMENT = getSettlement();
-            // Use window.SETTLEMENT_KEY from Firebase script
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
+            const settlementMeta = getSettlementMeta();
+            const SETTLEMENT = settlementMeta.name;
+            const STORAGE_KEY = `${STORAGE_KEY_BASE}_${settlementMeta.id || settlementMeta.key || 'default'}`;
             const [activeTab, setActiveTab] = useState('form');
             const [inspectionType, setInspectionType] = useState('');
             const [date, setDate] = useState('');
@@ -785,47 +730,9 @@
             const [isGenerating, setIsGenerating] = useState(false);
             const [toast, setToast] = useState('');
             const [selectedInspection, setSelectedInspection] = useState(null);
-            const [isDrawing, setIsDrawing] = useState(false);
             
             const signatureCanvasRef = useRef(null);
-
-            // Check if user is logged in
-            useEffect(() => {
-                const unsubscribe = window.onAuthStateChanged(window.auth, (currentUser) => {
-                    if (!currentUser) {
-                        window.location.href = 'index.html';
-                        return;
-                    }
-                    console.log('MY UID:', currentUser.uid);
-                    setUser(currentUser);
-                    setLoading(false);
-                });
-                return () => unsubscribe();
-            }, []);
-
-            // Load inspections from Firebase
-            useEffect(() => {
-                if (!user) return;
-
-                const inspectionsRef = window.dbRef(
-                    window.database,
-                    `settlements/${window.SETTLEMENT_KEY}/armon_inspections`
-                );
-
-
-                const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
-                    if (snapshot.exists()) {
-                        const data = snapshot.val();
-                        const inspectionsArray = Object.keys(data).map(key => ({ ...data[key], id: key }
-));
-                        setInspections(inspectionsArray);
-                    } else {
-                        setInspections([]);
-                    }
-                });
-
-                return () => unsubscribe();
-            }, [user]);
+            const [isDrawing, setIsDrawing] = useState(false);
 
             // Load officer details from localStorage
             useEffect(() => {
@@ -842,14 +749,25 @@
                 }
             }, [officer]);
 
-            // Set default date/time
+            // Load inspections from localStorage
+            useEffect(() => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    setInspections(JSON.parse(saved));
+                }
+            }, []);
+
+            // Save inspections to localStorage
+            useEffect(() => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(inspections));
+            }, [inspections]);
+
             useEffect(() => {
                 const now = new Date();
                 setDate(now.toISOString().split('T')[0]);
                 setTime(now.toTimeString().slice(0, 5));
             }, []);
 
-            // Signature canvas setup
             useEffect(() => {
                 const canvas = signatureCanvasRef.current;
                 if (!canvas) return;
@@ -860,23 +778,6 @@
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
             }, []);
-
-            // Show loading screen
-            if (loading) {
-                return (
-                    <div style={{
-                        minHeight: '100vh',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'var(--bg-dark)',
-                        color: 'var(--text-primary)',
-                        fontSize: '1.5rem'
-                    }}>
-                        ⏳ טוען...
-                    </div>
-                );
-            }
 
             const showToast = (message) => {
                 setToast(message);
@@ -939,7 +840,7 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             };
 
-            const saveInspection = async () => {
+            const saveInspection = () => {
                 if (!inspectionType) {
                     showToast('יש לבחור סוג ביקורת');
                     return false;
@@ -952,57 +853,38 @@
 
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
-// Save signature directly in database as base64 (no Storage needed)
-                const SETTLEMENT = getSettlement();
-                
+
                 const newInspection = {
-    type: inspectionType,
-    date,
-    time,
-    items: {...items},
-    officer: {...officer},
-    signature: signatureData,  // Store base64 directly
-    settlement: SETTLEMENT,  // Add settlement name
-    createdAt: new Date().toISOString(),
-    createdBy: user.uid
-};
+                    id: Date.now(),
+                    type: inspectionType,
+                    date,
+                    time,
+                    items: {...items},
+                    officer: {...officer},
+                    signature: signatureData,
+                    createdAt: new Date().toISOString()
+                };
 
-
-                // Save to Firebase
-const inspectionsRef = window.dbRef(
-  window.database,
-  `settlements/${window.SETTLEMENT_KEY}/armon_inspections`
-);
-
-                const newInspectionRef = window.dbPush(inspectionsRef);
-                window.dbSet(newInspectionRef, {
-                    ...newInspection,
-                    id: newInspectionRef.key
-                })
-                .then(() => {
-                    showToast('✅ הביקורת נשמרה בהצלחה!');
-                    
-                    // Reset form
-                    setInspectionType('');
-                    setItems(ITEMS.reduce((acc, item) => {
-                        acc[item.code] = {
-                            recorded: '',
-                            tempLoan: '',
-                            inventory: '',
-                            zeroing: '',
-                            notes: ''
-                        };
-                        return acc;
-                    }, {}));
-                    clearSignature();
-                    
-                    // Switch to history tab
-                    setActiveTab('history');
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    showToast('❌ שגיאה בשמירה');
-                });
+                setInspections(prev => [newInspection, ...prev]);
+                showToast('הביקורת נשמרה בהצלחה!');
+                
+                // Reset form
+                setInspectionType('');
+                setItems(ITEMS.reduce((acc, item) => {
+                    acc[item.code] = {
+                        recorded: '',
+                        tempLoan: '',
+                        inventory: '',
+                        zeroing: '',
+                        notes: ''
+                    };
+                    return acc;
+                }, {}));
+                setOfficer({ name: '', id: '', rank: '' });
+                clearSignature();
+                
+                // Switch to history tab
+                setActiveTab('history');
 
                 return true;
             };
@@ -1136,19 +1018,14 @@ form.updateFieldAppearances(hebFont);
 
                     // Add signature
                     try {
-  // Try as button field first (for image)
-  const signatureField = form.getButton('officer_signature');
-
-  const sigSrc = inspection.signatureUrl || inspection.signature; // חדש/ישן
-  if (!sigSrc) throw new Error('No signature source');
-
-  const signatureBytes = await fetch(sigSrc).then(res => res.arrayBuffer());
-  const signatureImg = await pdfDoc.embedPng(signatureBytes);
-  signatureField.setImage(signatureImg);
-} catch (e) {
-  // Signature field is not a button, or no signature, skip
-}
-
+                        // Try as button field first (for image)
+                        const signatureField = form.getButton('officer_signature');
+                        const signatureBytes = await fetch(inspection.signature).then(res => res.arrayBuffer());
+                        const signatureImg = await pdfDoc.embedPng(signatureBytes);
+                        signatureField.setImage(signatureImg);
+                    } catch (e) {
+                        // Signature field is not a button, skip
+                    }
 
                     // Hebrew font + appearances
 pdfDoc.registerFontkit(fontkit);
@@ -1181,29 +1058,13 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                     setIsGenerating(false);
                 }
             };
-const toKey = (s) =>
-  String(s || '')
-    .trim()
-    .replace(/[.#$[\]/]/g, '-')   // תווים אסורים ב-RTDB
-    .replace(/\s+/g, '_');        // רווחים -> _
 
-const deleteInspection = (id) => {
-  if (confirm('האם למחוק ביקורת זו?')) {
-    const SETTLEMENT_KEY = toKey(SETTLEMENT);
-    const inspectionsRef = window.dbRef(
-  window.database,
-  `settlements/${window.SETTLEMENT_KEY}/armon_inspections`
-);
-
-    window.dbRemove(inspectionRef)
-      .then(() => showToast('✅ הביקורת נמחקה'))
-      .catch((error) => {
-        console.error('Error:', error);
-        showToast('❌ שגיאה במחיקה');
-      });
-  }
-};
-
+            const deleteInspection = (id) => {
+                if (confirm('האם למחוק ביקורת זו?')) {
+                    setInspections(prev => prev.filter(i => i.id !== id));
+                    showToast('הביקורת נמחקה');
+                }
+            };
 
             const formatDate = (dateStr) => {
                 const d = new Date(dateStr);
@@ -1579,16 +1440,9 @@ const deleteInspection = (id) => {
                                         className="btn-modal-delete"
                                         onClick={() => {
                                             if (confirm('האם למחוק ביקורת זו?')) {
-                                                const inspectionRef = window.dbRef(window.database, `users/${user.uid}/armon_inspections/${selectedInspection.id}`);
-                                                window.dbRemove(inspectionRef)
-                                                    .then(() => {
-                                                        showToast('✅ הביקורת נמחקה');
-                                                        setSelectedInspection(null);
-                                                    })
-                                                    .catch((error) => {
-                                                        console.error('Error:', error);
-                                                        showToast('❌ שגיאה במחיקה');
-                                                    });
+                                                setInspections(prev => prev.filter(i => i.id !== selectedInspection.id));
+                                                setSelectedInspection(null);
+                                                showToast('הביקורת נמחקה');
                                             }
                                         }}
                                     >

@@ -13,59 +13,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
-    
-    <!-- Firebase SDK -->
-<script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-    import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-    import { getStorage, ref as storageRef, uploadString, getDownloadURL } 
-      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-        authDomain: "armory-inspections-private.firebaseapp.com",
-        databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "armory-inspections-private",
-        storageBucket: "armory-inspections-private.firebasestorage.app",
-        messagingSenderId: "415528668284",
-        appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-    };
-
-    // Define helper functions before using them
-    const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-    const getSettlementObj = () => {
-        try {
-            const saved = localStorage.getItem('currentSettlement');
-            if (saved) return JSON.parse(saved);
-        } catch (e) {}
-        return { name: 'פני קדם', key: 'פני_קדם' };
-    };
-
-    const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
-
-    const app = initializeApp(firebaseConfig);
-
-    window.auth = getAuth(app);
-    window.database = getDatabase(app);
-    window.onAuthStateChanged = onAuthStateChanged;
-    window.dbRef = ref;
-    window.dbPush = push;
-    window.dbSet = set;
-    window.dbOnValue = onValue;
-    window.dbRemove = remove;
-
-    // Storage
-    window.storage = getStorage(app);
-    window.storageRef = storageRef;
-    window.uploadString = uploadString;
-    window.getDownloadURL = getDownloadURL;
-    
-    // Export settlement key for use in other scripts
-    window.SETTLEMENT_KEY = SETTLEMENT_KEY;
-</script>
-
-    
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -719,13 +666,19 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
 
+        // Database helper
+        const DB_NAME_PREFIX = 'armory_inspections';
+        const getDbName = (settlementId) => `${DB_NAME_PREFIX}_${settlementId || 'default'}`;
+        const DB_VERSION = 2;
+        const STORE_NAME = 'inspections';
+
         // Default settlements
         const DEFAULT_SETTLEMENTS = [
             { id: 'pnei_kedem', name: 'פני קדם' },
             { id: 'mitzad', name: 'מיצד' }
         ];
         
-        // Get settlements from localStorage or use defaults (kept for backwards compatibility)
+        // Get settlements from localStorage or use defaults
         const getSettlements = () => {
             const saved = localStorage.getItem('settlements');
             if (saved) {
@@ -738,33 +691,69 @@
             localStorage.setItem('settlements', JSON.stringify(settlements));
         };
 
-        // Removed IndexedDB - using Firebase instead
-
-
-        // Firebase operations removed - we don't use IndexedDB anymore
-        // All data is now synced directly to Firebase
+        const openDB = (dbName) => {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(dbName, DB_VERSION);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('date', 'date', { unique: false });
+                        store.createIndex('month', 'month', { unique: false });
+                        store.createIndex('synced', 'synced', { unique: false });
+                        store.createIndex('settlement', 'settlement', { unique: false });
+                        store.createIndex('settlementMonth', ['settlement', 'month'], { unique: false });
+                    } else if (event.oldVersion < 2) {
+                        // Upgrade from version 1
+                        const store = event.target.transaction.objectStore(STORE_NAME);
+                        if (!store.indexNames.contains('settlement')) {
+                            store.createIndex('settlement', 'settlement', { unique: false });
+                        }
+                        if (!store.indexNames.contains('settlementMonth')) {
+                            store.createIndex('settlementMonth', ['settlement', 'month'], { unique: false });
+                        }
+                    }
+                };
+            });
+        };
 
         const saveInspection = async (data) => {
-            // Save to Firebase - store images directly in database as base64
-            const inspectionsRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/armory_inspections`);
-            const newInspectionRef = window.dbPush(inspectionsRef);
-            
-            // Keep photo and signature as base64 strings directly in the database
-            await window.dbSet(newInspectionRef, {
-                ...data,
-                createdAt: new Date().toISOString()
+            const dbName = getDbName(data?.settlement || 'default');
+            const db = await openDB(dbName);
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.add({ ...data, synced: false, createdAt: new Date().toISOString() });
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
             });
-            
-            return newInspectionRef.key;
         };
 
-        // getInspections is now handled by Firebase listener in useEffect
-        
-        const deleteInspection = async (id) => {
-            const inspectionRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/armory_inspections/${id}`);
-            await window.dbRemove(inspectionRef);
+        const getInspections = async (settlement, month) => {
+            const db = await openDB(getDbName(settlement));
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                const index = store.index('settlementMonth');
+                const request = index.getAll([settlement, month]);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
         };
 
+        const deleteInspection = async (id, settlement) => {
+            const dbName = getDbName(settlement || 'default');
+            const db = await openDB(dbName);
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const request = store.delete(id);
+                request.onsuccess = () => resolve();
+                request.onerror = () => reject(request.error);
+            });
+        };
 
         // Signature Pad Component
         const SignaturePad = ({ onSignatureChange, signatureData }) => {
@@ -873,40 +862,25 @@
 
         // Main App Component
         const App = () => {
-            const [user, setUser] = useState(null);
-            const [authLoading, setAuthLoading] = useState(true);
             const [settlements, setSettlements] = useState(getSettlements);
             const [showAddSettlement, setShowAddSettlement] = useState(false);
             const [newSettlementName, setNewSettlementName] = useState('');
             const [currentSettlement, setCurrentSettlement] = useState(() => {
-                // Get settlement from index.html (stored as {name, key})
+                // Get settlement from index.html
                 const saved = localStorage.getItem('currentSettlement');
                 if (saved) {
                     const settlement = JSON.parse(saved);
-                    return settlement.name;  // Use name, not id
+                    return settlement.id;
                 }
-                // Fallback
-                return 'פני קדם';
+                // Fallback to first settlement
+                const settlements = getSettlements();
+                return settlements[0]?.id || null;
             });
             const [activeTab, setActiveTab] = useState('new');
             const [isOnline, setIsOnline] = useState(navigator.onLine);
             const [toast, setToast] = useState(null);
             const [loading, setLoading] = useState(false);
             const [installPrompt, setInstallPrompt] = useState(null);
-            
-            // Check if user is logged in
-            useEffect(() => {
-                const unsubscribe = window.onAuthStateChanged(window.auth, (currentUser) => {
-                    if (!currentUser) {
-                        window.location.href = 'index.html';
-                        return;
-                    }
-                    console.log('User logged in:', currentUser.uid);
-                    setUser(currentUser);
-                    setAuthLoading(false);
-                });
-                return () => unsubscribe();
-            }, []);
             
             // Form state
             const [inspectionType, setInspectionType] = useState('before');
@@ -937,7 +911,8 @@
             
             // Get current settlement name
             const getSettlementName = () => {
-                return currentSettlement || 'פני קדם';
+                const settlement = settlements.find(s => s.id === currentSettlement);
+                return settlement ? settlement.name : '';
             };
             
             // Handle settlement selection
@@ -1120,29 +1095,19 @@ const deleteSettlementEntry = (id) => {
             }, []);
 
             useEffect(() => {
-                if (!user || !currentSettlement) return;
-                
-                // Set up Firebase listener for inspections
-                const inspectionsRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/armory_inspections`);
-                
-                const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
-                    if (snapshot.exists()) {
-                        const data = snapshot.val();
-                        const inspectionsArray = Object.keys(data).map(key => ({
-                            ...data[key],
-                            id: key
-                        }));
-                        
-                        // Filter by current month
-                        const filtered = inspectionsArray.filter(insp => insp.month === currentMonth);
-                        setInspections(filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-                    } else {
-                        setInspections([]);
-                    }
-                });
-                
-                return () => unsubscribe();
-            }, [currentMonth, currentSettlement]);
+                if (activeTab === 'history' && currentSettlement) {
+                    loadInspections();
+                }
+            }, [activeTab, currentMonth, currentSettlement]);
+
+            const loadInspections = async () => {
+                try {
+                    const data = await getInspections(currentSettlement, currentMonth);
+                    setInspections(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                } catch (error) {
+                    console.error('Error loading inspections:', error);
+                }
+            };
 
             const showToast = (message) => {
                 setToast(message);
@@ -1359,8 +1324,8 @@ const deleteSettlementEntry = (id) => {
             const handleDeleteInspection = async (id) => {
                 if (confirm('למחוק את הביקורת?')) {
                     try {
-                        await deleteInspection(id);
-                        // Firebase listener will update automatically
+                        await deleteInspection(id, currentSettlement);
+                        await loadInspections();
                         showToast('הביקורת נמחקה');
                     } catch (error) {
                         console.error('Error deleting:', error);
@@ -1399,30 +1364,154 @@ const deleteSettlementEntry = (id) => {
             const beforeCount = inspections.filter(i => i.type === 'before').length;
             const afterCount = inspections.filter(i => i.type === 'after').length;
 
-            // Show loading screen while checking auth
-            if (authLoading || !user) {
+            // Settlement selection screen
+            if (!currentSettlement) {
                 return (
-                    <div className="app-container" style={{ 
-                        display: 'flex', 
-                        justifyContent: 'center', 
-                        alignItems: 'center', 
-                        minHeight: '100vh' 
-                    }}>
-                        <div style={{
-                            textAlign: 'center',
-                            padding: '40px',
-                            background: 'var(--bg-card)',
-                            borderRadius: '16px',
-                            boxShadow: 'var(--shadow-lg)'
-                        }}>
-                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⏳</div>
-                            <div style={{ fontSize: '20px', fontWeight: '600' }}>טוען...</div>
+                    <div className="app-container">
+                        <header className="header">
+                            <button 
+                                onClick={() => window.location.href = 'index.html'}
+                                style={{
+                                    position: 'absolute',
+                                    top: '16px',
+                                    right: '16px',
+                                    background: 'rgba(255,255,255,0.2)',
+                                    border: 'none',
+                                    color: 'white',
+                                    padding: '8px 16px',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    transition: 'all 0.3s',
+                                    zIndex: 10
+                                }}
+                                onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+                                onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                            >
+                                🏠 חזור
+                            </button>
+                            <div className="header-content">
+                                <h1>ביקורת נשקייה</h1>
+                                <p>מסמך החתמה דיגיטלי</p>
+                                {installPrompt && (
+                                    <button 
+                                        onClick={handleInstall}
+                                        style={{
+                                            marginTop: '12px',
+                                            padding: '10px 20px',
+                                            background: 'var(--accent)',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: 'var(--bg-dark)',
+                                            fontSize: '1rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        📲 התקן אפליקציה
+                                    </button>
+                                )}
+                            </div>
+                        </header>
+                        
+                        <div className="card">
+                            <h2 className="card-title">
+                                <span className="icon">🏘️</span>
+                                בחר ישוב
+                            </h2>
+                            <div style={{display: 'flex', flexDirection: 'column', gap: '12px'}}>
+    {settlements.map(settlement => (
+        <div
+            key={settlement.id}
+            style={{display: 'flex', gap: '8px', alignItems: 'center'}}
+        >
+            {/* בחירת יישוב */}
+            <button
+                className="btn-primary"
+                onClick={() => selectSettlement(settlement.id)}
+                style={{flex: 1, textAlign: 'center'}}
+            >
+                {settlement.name}
+            </button>
+
+            {/* עריכת שם */}
+            <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => editSettlement(settlement.id)}
+                style={{width: '64px', padding: '8px', marginTop: 0, fontSize: '0.8rem'}}
+            >
+                ערוך
+            </button>
+
+            {/* מחיקת יישוב */}
+            <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => deleteSettlementEntry(settlement.id)}
+                style={{
+                    width: '64px',
+                    padding: '8px',
+                    marginTop: 0,
+                    fontSize: '0.8rem',
+                    borderColor: 'var(--danger)',
+                    color: 'var(--danger)'
+                }}
+            >
+                מחק
+            </button>
+        </div>
+    ))}
+
+    {/* החלק של הוספת יישוב חדש נשאר כמו שהוא */}
+    {!showAddSettlement ? (
+        <button
+            className="btn-secondary"
+            onClick={() => setShowAddSettlement(true)}
+            style={{textAlign: 'center'}}
+        >
+            + הוסף ישוב חדש
+        </button>
+    ) : (
+        <div style={{display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px'}}>
+            <input
+                type="text"
+                className="form-input"
+                placeholder="שם הישוב"
+                value={newSettlementName}
+                onChange={(e) => setNewSettlementName(e.target.value)}
+                autoFocus
+            />
+            <div style={{display: 'flex', gap: '8px'}}>
+                <button
+                    className="btn-primary"
+                    onClick={addSettlement}
+                    style={{flex: 1}}
+                >
+                    הוסף
+                </button>
+                <button
+                    className="btn-secondary"
+                    onClick={() => {setShowAddSettlement(false); setNewSettlementName('');}}
+                    style={{flex: 1, marginTop: 0}}
+                >
+                    ביטול
+                </button>
+            </div>
+        </div>
+    )}
+</div>
+
                         </div>
+                        {toast && <div className="toast">{toast}</div>}
                     </div>
                 );
             }
 
-            // Go straight to the main form (user already selected settlement in index.html)
             return (
                 <div className="app-container">
                     <header className="header">
@@ -1734,12 +1823,10 @@ const deleteSettlementEntry = (id) => {
                                                 </>
                                             )}
                                         </button>
-                                        <button className="action-btn delete" onClick={async () => {
+                                        <button className="action-btn delete" onClick={() => {
                                             if (confirm('למחוק את כל הביקורות של החודש?')) {
-                                                for (const i of inspections) {
-                                                    await deleteInspection(i.id);
-                                                }
-                                                // Firebase listener will update automatically
+                                                inspections.forEach(i => deleteInspection(i.id, currentSettlement));
+                                                loadInspections();
                                             }
                                         }}>
                                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

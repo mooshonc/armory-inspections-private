@@ -11,55 +11,61 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Firebase SDK -->
+   <!-- Firebase SDK (TECH) -->
 <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-    import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-    import { getDatabase, ref, push, set, onValue, remove } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js';
-    import { getStorage, ref as storageRef, uploadString, getDownloadURL } 
-      from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import {
+    getAuth,
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-        authDomain: "armory-inspections-private.firebaseapp.com",
-        databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "armory-inspections-private",
-        storageBucket: "armory-inspections-private.firebasestorage.app",
-        messagingSenderId: "415528668284",
-        appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-    };
+  import {
+    getDatabase,
+    ref,
+    push,
+    set,
+    onValue,
+    remove
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // Define helper functions before using them
-    const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-    const getSettlementObj = () => {
-        try {
-            const saved = localStorage.getItem('currentSettlement');
-            if (saved) return JSON.parse(saved);
-        } catch (e) {}
-        return { name: 'פני קדם', key: 'פני_קדם' };
-    };
+  import {
+    getStorage,
+    ref as storageRef,
+    uploadString,
+    getDownloadURL
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-    const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
+  const firebaseConfig = {
+    apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+    authDomain: "armory-inspections-private.firebaseapp.com",
+    databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "armory-inspections-private",
+    storageBucket: "armory-inspections-private.firebasestorage.app",
+    messagingSenderId: "415528668284",
+    appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+  };
 
-    const app = initializeApp(firebaseConfig);
+  const app = initializeApp(firebaseConfig);
 
-    window.auth = getAuth(app);
-    window.database = getDatabase(app);
-    window.onAuthStateChanged = onAuthStateChanged;
-    window.dbRef = ref;
-    window.dbPush = push;
-    window.dbSet = set;
-    window.dbOnValue = onValue;
-    window.dbRemove = remove;
+  // Auth
+  window.auth = getAuth(app);
+  window.onAuthStateChanged = onAuthStateChanged;
 
-    // Storage
-    window.storage = getStorage(app);
-    window.storageRef = storageRef;
-    window.uploadString = uploadString;
-    window.getDownloadURL = getDownloadURL;
-    
-    // Export settlement key for use in other scripts
-    window.SETTLEMENT_KEY = SETTLEMENT_KEY;
+  // Realtime Database
+  window.database = getDatabase(app);
+  window.dbRef = ref;
+  window.dbPush = push;
+  window.dbSet = set;
+  window.dbOnValue = onValue;
+  window.dbRemove = remove;
+
+  // Storage
+  window.storage = getStorage(app);
+  window.storageRef = storageRef;
+  window.uploadString = uploadString;
+  window.getDownloadURL = getDownloadURL;
+
+  console.log("TECH firebase ready. currentUser=", window.auth.currentUser?.uid || null);
 </script>
 
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -648,145 +654,105 @@
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
 
-        const STORAGE_KEY = 'tech_inspections';
+        const STORAGE_KEY_BASE = 'tech_inspections';
         
-        // Get settlement from localStorage (set by index.html)
-        const getSettlement = () => {
-  try {
-    const saved = localStorage.getItem('currentSettlement');
-    if (saved) {
-      const settlement = JSON.parse(saved);
-      if (settlement && settlement.name) return settlement.name;
-    }
-  } catch (e) {}
-  return 'פני_קדם';
-};
-
+        // Get settlement meta from localStorage (set by index.html)
+        const getSettlementMeta = () => {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) {
+                try {
+                    const s = JSON.parse(saved);
+                    return { id: s?.id || null, name: s?.name || 'פני קדם', key: s?.key || null };
+                } catch (e) {}
+            }
+            return { id: null, name: 'פני קדם', key: null };
+        };
 
         const App = () => {
-    const SETTLEMENT = getSettlement();
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('new');
-    const [inspections, setInspections] = useState([]);
-    const [toast, setToast] = useState('');
-    const [selectedInspection, setSelectedInspection] = useState(null);
-    const [newInspection, setNewInspection] = useState({
-        date: '',
-        time: '',
-        door: '',
-        windows: '',
-        siren: '',
-        dialer: '',
-        camera: '',
-        notes: '',
-        inspectorName: '',
-        inspectorId: ''
-    });
-    const [isDrawing, setIsDrawing] = useState(false);
-    
-    const signatureCanvasRef = useRef(null);
+            const settlementMeta = getSettlementMeta();
+            const SETTLEMENT = settlementMeta.name;
+            const STORAGE_KEY = `${STORAGE_KEY_BASE}_${settlementMeta.id || settlementMeta.key || 'default'}`;
+            const [activeTab, setActiveTab] = useState('new');
+            const [inspections, setInspections] = useState([]);
+            const [toast, setToast] = useState('');
+            const [selectedInspection, setSelectedInspection] = useState(null);
 
-    // Check if user is logged in
-    useEffect(() => {
-        const unsubscribe = window.onAuthStateChanged(window.auth, (currentUser) => {
-            if (!currentUser) {
-                // Not logged in - redirect to login
-                window.location.href = 'index.html';
-                return;
-            }
-            setUser(currentUser);
-            setLoading(false);
-        });
-        return () => unsubscribe();
-    }, []);
+            // New inspection form
+            const [newInspection, setNewInspection] = useState({
+                date: '',
+                time: '',
+                door: '',
+                windows: '',
+                siren: '',
+                dialer: '',
+                camera: '',
+                notes: '',
+                inspectorName: '',
+                inspectorId: ''
+            });
 
-    // Load inspections from Firebase
-    useEffect(() => {
-        if (!user) return;
+            const signatureCanvasRef = useRef(null);
+            const [isDrawing, setIsDrawing] = useState(false);
 
-        const inspectionsRef = window.dbRef(
-            window.database,
-            `settlements/${window.SETTLEMENT_KEY}/tech_inspections`
-        );
+            // Load inspections from localStorage
+            useEffect(() => {
+                const saved = localStorage.getItem(STORAGE_KEY);
+                if (saved) {
+                    setInspections(JSON.parse(saved));
+                }
+            }, []);
 
-        const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                const inspectionsArray = Object.keys(data).map(key => ({ ...data[key], id: key }
-));
-                setInspections(inspectionsArray);
-            } else {
-                setInspections([]);
-            }
-        });
+            // Save inspections to localStorage
+            useEffect(() => {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(inspections));
+            }, [inspections]);
 
-        return () => unsubscribe();
-    }, [user]);
+            // Load inspector details from localStorage
+            useEffect(() => {
+                const savedInspector = localStorage.getItem('tech_inspector_details');
+                if (savedInspector) {
+                    const inspector = JSON.parse(savedInspector);
+                    setNewInspection(prev => ({
+                        ...prev,
+                        inspectorName: inspector.name || '',
+                        inspectorId: inspector.id || ''
+                    }));
+                }
+            }, []);
 
-    // Load inspector details from localStorage
-    useEffect(() => {
-        const savedInspector = localStorage.getItem('tech_inspector_details');
-        if (savedInspector) {
-            const inspector = JSON.parse(savedInspector);
-            setNewInspection(prev => ({
-                ...prev,
-                inspectorName: inspector.name || '',
-                inspectorId: inspector.id || ''
-            }));
-        }
-    }, []);
+            // Save inspector details to localStorage when changed
+            useEffect(() => {
+                if (newInspection.inspectorName || newInspection.inspectorId) {
+                    localStorage.setItem('tech_inspector_details', JSON.stringify({
+                        name: newInspection.inspectorName,
+                        id: newInspection.inspectorId
+                    }));
+                }
+            }, [newInspection.inspectorName, newInspection.inspectorId]);
 
-    // Save inspector details to localStorage when changed
-    useEffect(() => {
-        if (newInspection.inspectorName || newInspection.inspectorId) {
-            localStorage.setItem('tech_inspector_details', JSON.stringify({
-                name: newInspection.inspectorName,
-                id: newInspection.inspectorId
-            }));
-        }
-    }, [newInspection.inspectorName, newInspection.inspectorId]);
+            // Set default date/time
+            useEffect(() => {
+                const now = new Date();
+                const today = now.toISOString().split('T')[0];
+                const currentTime = now.toTimeString().slice(0, 5);
+                setNewInspection(prev => ({
+                    ...prev,
+                    date: today,
+                    time: currentTime
+                }));
+            }, []);
 
-    // Set default date/time
-    useEffect(() => {
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const currentTime = now.toTimeString().slice(0, 5);
-        setNewInspection(prev => ({
-            ...prev,
-            date: today,
-            time: currentTime
-        }));
-    }, []);
+            // Signature canvas setup
+            useEffect(() => {
+                const canvas = signatureCanvasRef.current;
+                if (!canvas) return;
 
-    // Signature canvas setup
-    useEffect(() => {
-        const canvas = signatureCanvasRef.current;
-        if (!canvas) return;
-
-        const ctx = canvas.getContext('2d');
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-    }, []);
-
-    // Show loading screen
-    if (loading) {
-        return (
-            <div style={{
-                minHeight: '100vh',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--bg-dark)',
-                color: 'var(--text-primary)',
-                fontSize: '1.5rem'
-            }}>
-                ⏳ טוען...
-            </div>
-        );
-    }
+                const ctx = canvas.getContext('2d');
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            }, []);
 
             const showToast = (message) => {
                 setToast(message);
@@ -845,7 +811,7 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             };
 
-            const saveInspection = async () => {
+            const saveInspection = () => {
                 if (!newInspection.date || !newInspection.time) {
                     showToast('יש למלא תאריך ושעה');
                     return;
@@ -858,30 +824,17 @@
 
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
-// Save signature directly in database as base64 (no Storage needed)
+
                 const inspection = {
-    id: Date.now(),
-    settlement: SETTLEMENT,
-    ...newInspection,
-    signature: signatureData,  // Store base64 directly
-    createdAt: new Date().toISOString(),
-    createdBy: user.uid
-};
-// Save to Firebase
-const inspectionsRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/tech_inspections`
-);
-const newInspectionRef = window.dbPush(inspectionsRef);
-window.dbSet(newInspectionRef, {
-    ...inspection,
-    id: newInspectionRef.key
-})
-.then(() => {
-    showToast('✅ הביקורת נשמרה בהצלחה!');
-})
-.catch((error) => {
-    console.error('Error:', error);
-    showToast('❌ שגיאה בשמירה');
-});
+                    id: Date.now(),
+                    settlement: SETTLEMENT,
+                    ...newInspection,
+                    signature: signatureData,
+                    createdAt: new Date().toISOString()
+                };
+
+                setInspections(prev => [...prev, inspection]);
+                showToast('הביקורת נשמרה בהצלחה!');
 
                 // Reset form (keep inspector details)
                 const inspectorName = newInspection.inspectorName;
@@ -904,28 +857,12 @@ window.dbSet(newInspectionRef, {
                 setActiveTab('list');
             };
 
-            const toKey = (s) =>
-  String(s || '')
-    .trim()
-    .replace(/[.#$[\]/]/g, '-')   // תווים אסורים ב-RTDB
-    .replace(/\s+/g, '_');        // רווחים -> _
-
-const deleteInspection = (id) => {
-  if (confirm('האם למחוק ביקורת זו?')) {
-    const inspectionRef = window.dbRef(
-      window.database,
-      `settlements/${window.SETTLEMENT_KEY}/tech_inspections/${id}`
-    );
-
-    window.dbRemove(inspectionRef)
-      .then(() => showToast('✅ הביקורת נמחקה'))
-      .catch((error) => {
-        console.error('Error:', error);
-        showToast('❌ שגיאה במחיקה');
-      });
-  }
-};
-
+            const deleteInspection = (id) => {
+                if (confirm('האם למחוק ביקורת זו?')) {
+                    setInspections(prev => prev.filter(i => i.id !== id));
+                    showToast('הביקורת נמחקה');
+                }
+            };
 
             const generatePDF = async () => {
                 if (inspections.length === 0) {
@@ -1009,11 +946,11 @@ const deleteInspection = (id) => {
                             form.getTextField(`row_${rowNum}_inspector_id`).setText(insp.inspectorId);
 
                             // Add signature
-                            const sigSrc = insp.signatureUrl || insp.signature; // תאימות לאחור (ישנים/חדשים)
-if (sigSrc) {
-  try {
-    const signatureBytes = await fetch(sigSrc).then(res => res.arrayBuffer());
-    const signatureImg = await pdfDoc.embedPng(signatureBytes);
+                            if (insp.signature) {
+                                try {
+                                    // Get signature field position
+                                    const signatureField = form.getTextField(`row_${rowNum}_signature`);
+                                    const widgets = signatureField.acroField.getWidgets();
                                     
                                     if (widgets.length > 0) {
                                         const widget = widgets[0];
