@@ -518,12 +518,10 @@ const [settlementPassword, setSettlementPassword] = useState('');
 const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
 
 const settlementEmailKey = (settlement) => {
-  // עדיפות ל-id (כמו pnei_kedem). אם אין, מייצרים מפתח ASCII משם (encodeURIComponent)
-  const id = String(settlement?.id || '').trim().toLowerCase();
+  const id = String(settlement?.id || '').trim().toLowerCase().replace(/\s+/g, '_');
   if (id) return id;
 
   const name = String(settlement?.name || '').trim();
-  // "פני קדם" -> "D7A4D7A0D79920D7A7D793D79D" (ASCII בלבד)
   return 's' + encodeURIComponent(name).replace(/%/g, '').toLowerCase();
 };
 
@@ -535,24 +533,36 @@ const loginToSettlement = async (settlement, password) => {
   console.log('[loginToSettlement] name=', settlement?.name, 'id=', settlement?.id);
   console.log('[loginToSettlement] email=', email);
   console.log('[loginToSettlement] password length=', pass.length);
+  console.log('[loginToSettlement] create fn type=', typeof window.createUserWithEmailAndPassword);
 
-  if (!pass) {
-    throw Object.assign(new Error('EMPTY_PASSWORD'), { code: 'EMPTY_PASSWORD' });
+  if (pass.length < 6) {
+    const err = new Error('WEAK_PASSWORD');
+    err.code = 'WEAK_PASSWORD';
+    throw err;
   }
 
+  // 1) ננסה להתחבר
   try {
     await window.signInWithEmailAndPassword(window.auth, email, pass);
     console.log('[loginToSettlement] ✅ signIn success');
   } catch (e) {
-  console.log('[loginToSettlement] signIn error:', e.code);
+    console.log('[loginToSettlement] signIn error:', e.code);
 
-    // אם המשתמש לא קיים – ניצור אותו
-    if (e.code === 'auth/user-not-found') {
-            console.log('[loginToSettlement] attempting createUser...');
+    // 2) אם נכשל, ננסה ליצור משתמש (מתאים גם להגנות שמחזירות invalid-credential תמיד)
+    console.log('[loginToSettlement] attempting createUser...');
+    try {
       await window.createUserWithEmailAndPassword(window.auth, email, pass);
       console.log('[loginToSettlement] ✅ user created');
-    } else {
-      throw e;
+    } catch (ce) {
+      console.log('[loginToSettlement] create error:', ce.code);
+
+      // אם כבר קיים — אז זו באמת סיסמה שגויה, נחזור ל-signIn כדי לקבל מצב התחברות עקבי
+      if (ce.code === 'auth/email-already-in-use') {
+        const err = new Error('WRONG_PASSWORD');
+        err.code = 'WRONG_PASSWORD';
+        throw err;
+      }
+      throw ce;
     }
   }
 
@@ -561,6 +571,7 @@ const loginToSettlement = async (settlement, password) => {
     JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
   );
 };
+
 
 const addSettlement = () => {
   if (!newSettlementName.trim()) {
