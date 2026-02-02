@@ -517,23 +517,49 @@ const [settlementPassword, setSettlementPassword] = useState('');
 
 const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
 
-const loginToSettlement = async (settlementId, settlementName, password) => {
-  const key = String(settlementId || '').trim().toLowerCase().replace(/\s+/g, '_');
+const settlementEmailKey = (settlement) => {
+  // עדיפות ל-id (כמו pnei_kedem). אם אין, מייצרים מפתח ASCII משם (encodeURIComponent)
+  const id = String(settlement?.id || '').trim().toLowerCase();
+  if (id) return id;
+
+  const name = String(settlement?.name || '').trim();
+  // "פני קדם" -> "D7A4D7A0D79920D7A7D793D79D" (ASCII בלבד)
+  return 's' + encodeURIComponent(name).replace(/%/g, '').toLowerCase();
+};
+
+const loginToSettlement = async (settlement, password) => {
+  const key = settlementEmailKey(settlement);
   const email = `${key}@settlement.local`;
-console.log('Settlement email:', email);
+  const pass = String(password || '');
+
+  console.log('[loginToSettlement] name=', settlement?.name, 'id=', settlement?.id);
+  console.log('[loginToSettlement] email=', email);
+  console.log('[loginToSettlement] password length=', pass.length);
+
+  if (!pass) {
+    throw Object.assign(new Error('EMPTY_PASSWORD'), { code: 'EMPTY_PASSWORD' });
+  }
+
   try {
-    await window.signInWithEmailAndPassword(window.auth, email, password);
+    await window.signInWithEmailAndPassword(window.auth, email, pass);
+    console.log('[loginToSettlement] ✅ signIn success');
   } catch (e) {
+    console.log('[loginToSettlement] signIn error:', e.code, e.message);
+
+    // אם המשתמש לא קיים – ניצור אותו
     if (e.code === 'auth/user-not-found') {
-      await window.createUserWithEmailAndPassword(window.auth, email, password);
+      await window.createUserWithEmailAndPassword(window.auth, email, pass);
+      console.log('[loginToSettlement] ✅ user created');
     } else {
       throw e;
     }
   }
 
-  localStorage.setItem('currentSettlement', JSON.stringify({ id: settlementId, name: settlementName, key }));
+  localStorage.setItem(
+    'currentSettlement',
+    JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
+  );
 };
-
 
 const addSettlement = () => {
   if (!newSettlementName.trim()) {
@@ -582,7 +608,7 @@ const addSettlement = () => {
   }
 
   try {
-    await loginToSettlement(settlement.id, settlement.name, settlementPassword);
+    await loginToSettlement(settlement, settlementPassword);
   } catch (e) {
     console.error(e);
     showToast('❌ סיסמה שגויה או תקלה בהתחברות');
