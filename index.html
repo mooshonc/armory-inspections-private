@@ -517,8 +517,8 @@ const [settlementPassword, setSettlementPassword] = useState('');
 
 const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
 
-const loginToSettlement = async (settlementName, password) => {
-  const key = toKey(settlementName);
+const loginToSettlement = async (settlementId, settlementName, password) => {
+  const key = String(settlementId || '').trim().toLowerCase().replace(/\s+/g, '_');
   const email = `${key}@settlement.local`;
 
   try {
@@ -531,8 +531,9 @@ const loginToSettlement = async (settlementName, password) => {
     }
   }
 
-  localStorage.setItem('currentSettlement', JSON.stringify({ name: settlementName, key }));
+  localStorage.setItem('currentSettlement', JSON.stringify({ id: settlementId, name: settlementName, key }));
 };
+
 
 const addSettlement = () => {
   if (!newSettlementName.trim()) {
@@ -581,7 +582,7 @@ const addSettlement = () => {
   }
 
   try {
-    await loginToSettlement(settlement.name, settlementPassword);
+    await loginToSettlement(settlement.id, settlement.name, settlementPassword);
   } catch (e) {
     console.error(e);
     showToast('❌ סיסמה שגויה או תקלה בהתחברות');
