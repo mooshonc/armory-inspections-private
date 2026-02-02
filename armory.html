@@ -32,6 +32,18 @@
         appId: "1:415528668284:web:6829c57d517c09ccf04df9"
     };
 
+    // Define helper functions before using them
+    const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+    const getSettlementObj = () => {
+        try {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return { name: 'פני קדם', key: 'פני_קדם' };
+    };
+
+    const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
+
     const app = initializeApp(firebaseConfig);
 
     window.auth = getAuth(app);
@@ -48,6 +60,9 @@
     window.storageRef = storageRef;
     window.uploadString = uploadString;
     window.getDownloadURL = getDownloadURL;
+    
+    // Export settlement key for use in other scripts
+    window.SETTLEMENT_KEY = SETTLEMENT_KEY;
 </script>
 
     
@@ -710,19 +725,6 @@
             { id: 'mitzad', name: 'מיצד' }
         ];
         
-        // Firebase helper functions
-        const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-        
-        const getSettlementObj = () => {
-            try {
-                const saved = localStorage.getItem('currentSettlement');
-                if (saved) return JSON.parse(saved);
-            } catch (e) {}
-            return { name: 'פני קדם', key: 'פני_קדם' };
-        };
-        
-        const SETTLEMENT_KEY = getSettlementObj().key;
-        
         // Get settlements from localStorage or use defaults (kept for backwards compatibility)
         const getSettlements = () => {
             const saved = localStorage.getItem('settlements');
@@ -744,7 +746,7 @@
 
         const saveInspection = async (data) => {
             // Save to Firebase
-            const inspectionsRef = window.dbRef(window.database, `settlements/${SETTLEMENT_KEY}/armory_inspections`);
+            const inspectionsRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/armory_inspections`);
             const newInspectionRef = window.dbPush(inspectionsRef);
             
             // Upload photo and signature to Storage if they exist
@@ -1163,7 +1165,7 @@ const deleteSettlementEntry = (id) => {
                 if (!user || !currentSettlement) return;
                 
                 // Set up Firebase listener for inspections
-                const inspectionsRef = window.dbRef(window.database, `settlements/${SETTLEMENT_KEY}/armory_inspections`);
+                const inspectionsRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/armory_inspections`);
                 
                 const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
                     if (snapshot.exists()) {

@@ -29,7 +29,18 @@
         messagingSenderId: "415528668284",
         appId: "1:415528668284:web:6829c57d517c09ccf04df9"
     };
-const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
+
+    // Define helper functions before using them
+    const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+    const getSettlementObj = () => {
+        try {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return { name: 'פני קדם', key: 'פני_קדם' };
+    };
+
+    const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
 
     const app = initializeApp(firebaseConfig);
 
@@ -47,6 +58,9 @@ const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
     window.storageRef = storageRef;
     window.uploadString = uploadString;
     window.getDownloadURL = getDownloadURL;
+    
+    // Export settlement key for use in other scripts
+    window.SETTLEMENT_KEY = SETTLEMENT_KEY;
 </script>
 
     
@@ -743,10 +757,7 @@ const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
 
         const App = () => {
             const SETTLEMENT = getSettlement();
-            const SETTLEMENT_KEY = (SETTLEMENT || 'פני_קדם')
-    .trim()
-    .replace(/[.#$[\]/]/g, '-')
-    .replace(/\s+/g, '_');
+            // Use window.SETTLEMENT_KEY from Firebase script
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('form');
@@ -796,21 +807,10 @@ const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
             useEffect(() => {
                 if (!user) return;
 
-                const SETTLEMENT = getSettlement();
-
-const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-const getSettlementObj = () => {
-  try {
-    const saved = localStorage.getItem('currentSettlement');
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
-  return { name: 'פני קדם', key: 'פני_קדם' };
-};
-
-const inspectionsRef = window.dbRef(
-  window.database,
-  `settlements/${SETTLEMENT_KEY}/armon_inspections`
-);
+                const inspectionsRef = window.dbRef(
+                    window.database,
+                    `settlements/${window.SETTLEMENT_KEY}/armon_inspections`
+                );
 
 
                 const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
@@ -953,14 +953,11 @@ const inspectionsRef = window.dbRef(
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
 // העלאת חתימה ל-Storage והמרה ל-URL
-const SETTLEMENT_KEY = ((SETTLEMENT && String(SETTLEMENT).trim()) ? String(SETTLEMENT).trim() : 'פני_קדם')
-  .replace(/[.#$[\]/]/g, '-')
-  .replace(/\s+/g, '_');
-const sigPath = `signatures/${SETTLEMENT_KEY}/armon/${user.uid}/${Date.now()}.png`;
+const sigPath = `signatures/${window.SETTLEMENT_KEY}/armon/${user.uid}/${Date.now()}.png`;
 console.log('sigPath=', sigPath);
 const sigRef = window.storageRef(window.storage, sigPath);
 console.log('SETTLEMENT=', SETTLEMENT);
-console.log('SETTLEMENT_KEY=', SETTLEMENT_KEY);
+console.log('SETTLEMENT_KEY=', window.SETTLEMENT_KEY);
 console.log('sigPath=', sigPath);
 
 await window.uploadString(sigRef, signatureData, 'data_url');
@@ -983,7 +980,7 @@ const signatureUrl = await window.getDownloadURL(sigRef);
 
 const inspectionsRef = window.dbRef(
   window.database,
-  `settlements/${SETTLEMENT_KEY}/armon_inspections`
+  `settlements/${window.SETTLEMENT_KEY}/armon_inspections`
 );
 
                 const newInspectionRef = window.dbPush(inspectionsRef);
@@ -1204,7 +1201,7 @@ const deleteInspection = (id) => {
     const SETTLEMENT_KEY = toKey(SETTLEMENT);
     const inspectionsRef = window.dbRef(
   window.database,
-  `settlements/${SETTLEMENT_KEY}/armon_inspections`
+  `settlements/${window.SETTLEMENT_KEY}/armon_inspections`
 );
 
     window.dbRemove(inspectionRef)

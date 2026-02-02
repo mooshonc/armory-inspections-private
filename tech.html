@@ -28,7 +28,18 @@
         messagingSenderId: "415528668284",
         appId: "1:415528668284:web:6829c57d517c09ccf04df9"
     };
-const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
+
+    // Define helper functions before using them
+    const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+    const getSettlementObj = () => {
+        try {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) return JSON.parse(saved);
+        } catch (e) {}
+        return { name: 'פני קדם', key: 'פני_קדם' };
+    };
+
+    const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
 
     const app = initializeApp(firebaseConfig);
 
@@ -46,6 +57,9 @@ const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
     window.storageRef = storageRef;
     window.uploadString = uploadString;
     window.getDownloadURL = getDownloadURL;
+    
+    // Export settlement key for use in other scripts
+    window.SETTLEMENT_KEY = SETTLEMENT_KEY;
 </script>
 
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -691,14 +705,10 @@ const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
     useEffect(() => {
         if (!user) return;
 
-       const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-const SETTLEMENT = getSettlement();
-const SETTLEMENT_KEY = toKey(SETTLEMENT);
-
-const inspectionsRef = window.dbRef(
-  window.database,
-  `settlements/${SETTLEMENT_KEY}/tech_inspections`
-);
+        const inspectionsRef = window.dbRef(
+            window.database,
+            `settlements/${window.SETTLEMENT_KEY}/tech_inspections`
+        );
 
         const unsubscribe = window.dbOnValue(inspectionsRef, (snapshot) => {
             if (snapshot.exists()) {
@@ -849,8 +859,7 @@ const inspectionsRef = window.dbRef(
                 const signatureCanvas = signatureCanvasRef.current;
                 const signatureData = signatureCanvas.toDataURL('image/png');
 // העלאת חתימה ל-Storage והמרה ל-URL
-const SETTLEMENT_KEY = (SETTLEMENT || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-const sigPath = `signatures/${SETTLEMENT_KEY}/tech/${user.uid}/${Date.now()}.png`;
+const sigPath = `signatures/${window.SETTLEMENT_KEY}/tech/${user.uid}/${Date.now()}.png`;
 const sigRef = window.storageRef(window.storage, sigPath);
 
 await window.uploadString(sigRef, signatureData, 'data_url');
@@ -865,7 +874,7 @@ const signatureUrl = await window.getDownloadURL(sigRef);
     createdBy: user.uid
 };
 // Save to Firebase
-const inspectionsRef = window.dbRef(window.database, `settlements/${SETTLEMENT_KEY}/tech_inspections`
+const inspectionsRef = window.dbRef(window.database, `settlements/${window.SETTLEMENT_KEY}/tech_inspections`
 );
 const newInspectionRef = window.dbPush(inspectionsRef);
 window.dbSet(newInspectionRef, {
@@ -909,18 +918,9 @@ window.dbSet(newInspectionRef, {
 
 const deleteInspection = (id) => {
   if (confirm('האם למחוק ביקורת זו?')) {
-const getSettlementObj = () => {
-  try {
-    const saved = localStorage.getItem('currentSettlement');
-    if (saved) return JSON.parse(saved);
-  } catch (e) {}
-  return { name: 'פני קדם', key: 'פני_קדם' };
-};
-
-const { name: SETTLEMENT, key: SETTLEMENT_KEY } = getSettlementObj();
     const inspectionRef = window.dbRef(
       window.database,
-      `settlements/${SETTLEMENT_KEY}/tech_inspections/${id}`
+      `settlements/${window.SETTLEMENT_KEY}/tech_inspections/${id}`
     );
 
     window.dbRemove(inspectionRef)
