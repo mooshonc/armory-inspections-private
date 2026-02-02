@@ -430,400 +430,295 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
-// ✅ תמיד קיים, לא תלוי בסוגריים בתוך App
-const INSPECTIONS = [
-  {
-    id: 'armory',
-    icon: '🔫',
-    title: 'לפני ואחרי חצות',
-    subtitle: 'ביקורת נשקייה',
-    description: 'ביקורת נשק לפני ואחרי חצות - בדיקת נשקים, תחמושת וציוד'
-  },
-  {
-    id: 'armon',
-    icon: '📦',
-    title: 'מחסן ארמון',
-    subtitle: 'ספירת מלאי',
-    description: 'ביקורת פתיחה וסגירה של מחסן ארמון - ספירת ציוד צבאי'
-  },
-  {
-    id: 'tech',
-    icon: '🛡️',
-    title: 'תקינות מערכות טכנולוגיות',
-    subtitle: 'ביקורת יומית',
-    description: 'בדיקת תקינות דלתות, חלונות, מצלמות ומערכות אזעקה'
+// React hooks
+const { useState, useEffect } = React;
+
+// ---- Local storage helpers (robust) ----
+const STORAGE_KEYS = {
+  settlements: 'settlements',
+  selectedSettlement: 'selectedSettlement',
+  settlementMeta: 'settlementMeta', // used by inspection pages
+  settlementPassword: 'settlementPassword' // optional convenience
+};
+
+function safeJsonParse(s, fallback) {
+  try { return JSON.parse(s); } catch (e) { return fallback; }
+}
+
+function loadSettlements() {
+  const raw = localStorage.getItem(STORAGE_KEYS.settlements);
+  const parsed = raw ? safeJsonParse(raw, null) : null;
+  if (Array.isArray(parsed) && parsed.length) return parsed;
+  // Default if empty
+  return [{ id: 'default', name: 'בחר ישוב', key: 'default' }];
+}
+
+function saveSettlements(list) {
+  try { localStorage.setItem(STORAGE_KEYS.settlements, JSON.stringify(list)); } catch (e) {}
+}
+
+function loadSelectedSettlement(settlements) {
+  const id = localStorage.getItem(STORAGE_KEYS.selectedSettlement) || '';
+  if (id && settlements.some(s => s.id === id)) return id;
+  return settlements[0]?.id || '';
+}
+
+function makeSettlementId(name) {
+  return String(name || '')
+    .trim()
+    .replace(/\s+/g,'_')
+    .replace(/[^0-9A-Za-z_\u0590-\u05FF-]/g,'')
+    .slice(0, 40) || ('settlement_' + Date.now());
+}
+
+// ---- Minimal "login" shim ----
+// If you still use Firebase Auth per settlement, keep your existing loginToSettlement.
+// This version stores settlement meta for the inspection pages to read.
+async function loginToSettlement(settlement, password) {
+  // Persist meta locally so navigating away doesn't lose selection
+  try {
+    localStorage.setItem(STORAGE_KEYS.settlementMeta, JSON.stringify({
+      id: settlement.id,
+      key: settlement.key,
+      name: settlement.name
+    }));
+    localStorage.setItem(STORAGE_KEYS.settlementPassword, password || '');
+  } catch (e) {}
+
+  // If Firebase auth exists in this project, try to sign in (but don't crash UI if unavailable)
+  try {
+    if (window.firebase && firebase.auth) {
+      const auth = firebase.auth();
+      // This is your existing scheme; adjust if your project uses something else.
+      const email = (settlement.id || settlement.key || 'settlement') + '@settlement.local';
+      await auth.signInWithEmailAndPassword(email, password);
+    }
+  } catch (e) {
+    // Rethrow so UI can show toast on wrong password
+    throw e;
   }
-];
-
-        
-        // Settlements (local, shared on this device)
-        const DEFAULT_SETTLEMENTS = [
-            { id: 'pnei_kedem', name: 'פני קדם' },
-            { id: 'mitzad', name: 'מיצד' }
-        ];
-
-        const loadSettlements = () => {
-            try {
-                const saved = localStorage.getItem('settlements');
-                if (saved) {
-                    const parsed = JSON.parse(saved);
-                    if (Array.isArray(parsed) && parsed.length) return parsed;
-                }
-            } catch (e) {}
-            return DEFAULT_SETTLEMENTS;
-        };
-
-        const saveSettlements = (list) => {
-            try {
-                localStorage.setItem('settlements', JSON.stringify(list));
-            } catch (e) {}
-        };
-
-        const loadSelectedSettlement = () => {
-            try {
-                return localStorage.getItem('selectedSettlement') || '';
-            } catch (e) {
-                return '';
-            }
-        };
+}
 
 function App() {
-            const [settlements, setSettlements] = useState(loadSettlements);
-            const [selectedSettlement, setSelectedSettlement] = useState(loadSelectedSettlement);
-            const [showAddModal, setShowAddModal] = useState(false);
-            const [newSettlementName, setNewSettlementName] = useState('');
-            const [toast, setToast] = useState('');
-            const [deferredPrompt, setDeferredPrompt] = useState(null);
-            const [settlementPassword, setSettlementPassword] = useState('');
+  const [settlements, setSettlements] = useState(() => loadSettlements());
+  const [selectedSettlement, setSelectedSettlement] = useState(() => loadSelectedSettlement(loadSettlements()));
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newSettlementName, setNewSettlementName] = useState('');
+  const [toast, setToast] = useState('');
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [settlementPassword, setSettlementPassword] = useState(() => localStorage.getItem(STORAGE_KEYS.settlementPassword) || '');
 
-            // Persist selected settlement & settlements list locally
-            useEffect(() => {
-                if (selectedSettlement) {
-                    try { localStorage.setItem('selectedSettlement', selectedSettlement); } catch (e) {}
-                }
-            }, [selectedSettlement]);
+  const INSPECTIONS = [
+    { id: 'armory', icon: '🕛', title: 'ביקורת לפני/אחרי חצות', subtitle: 'נשקייה', description: 'ביקורת נשקייה שגרתית לפני/אחרי חצות.' },
+    { id: 'armon',  icon: '🏛️', title: 'ביקורת מחסן ארמון',      subtitle: 'מחסן',   description: 'ביקורת מחסן ארמון ושמירת דוחות.' },
+    { id: 'tech',   icon: '📡', title: 'ביקורת אמצעים טכנולוגיים', subtitle: 'אמצעים',  description: 'ביקורת אמצעים טכנולוגיים וייצוא ל־PDF.' }
+  ];
 
-            useEffect(() => {
-                saveSettlements(settlements);
-                // If current selection was deleted, pick first
-                if (settlements.length && !settlements.some(s => s.id === selectedSettlement)) {
-                    setSelectedSettlement(settlements[0].id);
-                }
-            }, [settlements]);
-
-            // Ensure we have a default selection
-            useEffect(() => {
-                if (!selectedSettlement && settlements.length > 0) {
-                    setSelectedSettlement(settlements[0].id);
-                }
-            }, [settlements, selectedSettlement]);
-
-            // Capture install prompt
-            useEffect(() => {
-                const handler = (e) => {
-                    e.preventDefault();
-                    setDeferredPrompt(e);
-                };
-                window.addEventListener('beforeinstallprompt', handler);
-                return () => window.removeEventListener('beforeinstallprompt', handler);
-            }, []);
-
-
-            const handleInstall = async () => {
-                if (!deferredPrompt) {
-                    showToast('ההתקנה זמינה רק בדפדפנים נתמכים');
-                    return;
-                }
-                
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                
-                if (outcome === 'accepted') {
-                    showToast('✅ האפליקציה הותקנה!');
-                } else {
-                    showToast('ההתקנה בוטלה');
-                }
-                
-                setDeferredPrompt(null);
-            };
-
-            const showToast = (message) => {
-  setToast(message);
-  setTimeout(() => setToast(''), 3000);
-};
-
-const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
-
-const settlementEmailKey = (settlement) => {
-  const id = String(settlement?.id || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (id) return id;
-
-  const name = String(settlement?.name || '').trim();
-  return 's' + encodeURIComponent(name).replace(/%/g, '').toLowerCase();
-};
-
-const loginToSettlement = async (settlement, password) => {
-  const key = settlementEmailKey(settlement);
-  const email = `${key}@settlement.local`;
-  const pass = String(password || '');
-
-  console.log('[loginToSettlement] email=', email, 'passLen=', pass.length);
-
-  if (pass.length < 6) {
-    const err = new Error('WEAK_PASSWORD');
-    err.code = 'WEAK_PASSWORD';
-    throw err;
-  }
-
-  // 1) קודם ננסה ליצור משתמש (פעם ראשונה ליישוב)
-  try {
-    await window.createUserWithEmailAndPassword(window.auth, email, pass);
-    console.log('[loginToSettlement] ✅ user created');
-  } catch (ce) {
-    // אם כבר קיים – זה תקין, נמשיך להתחבר
-    if (ce.code !== 'auth/email-already-in-use') {
-      console.log('[loginToSettlement] create error:', ce.code);
-      throw ce;
-    }
-  }
-
-  // 2) עכשיו נתחבר (או עם המשתמש החדש, או עם הקיים)
-  try {
-    await window.signInWithEmailAndPassword(window.auth, email, pass);
-    console.log('[loginToSettlement] ✅ signIn success');
-  } catch (se) {
-    console.log('[loginToSettlement] signIn error:', se.code);
-    const err = new Error('WRONG_PASSWORD');
-    err.code = 'WRONG_PASSWORD';
-    throw err;
-  }
-
-  localStorage.setItem(
-    'currentSettlement',
-    JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
-  );
-};
-
-
-const addSettlement = () => {
-  const name = String(newSettlementName || '').trim();
-  if (!name) {
-    showToast('נא להזין שם ישוב');
-    return;
-  }
-
-  // Create a stable-ish id; add timestamp if already exists
-  const baseId = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_\u0590-\u05ff]/g, '');
-  let id = baseId || ('s' + Date.now());
-  if (settlements.some(s => s.id === id)) {
-    id = `${id}_${Date.now()}`;
-  }
-
-  const newSettlement = { id, name };
-  const updated = [...settlements, newSettlement];
-
-  setSettlements(updated);
-  setSelectedSettlement(id);
-
-  setShowAddModal(false);
-  setNewSettlementName('');
-  showToast('✅ הישוב נוסף בהצלחה');
-};
-
-
-
-
-            const deleteSettlement = () => {
-                if (settlements.length === 1) {
-                    showToast('❌ לא ניתן למחוק את הישוב האחרון');
-                    return;
-                }
-
-                if (!confirm(`האם למחוק את "${settlements.find(s => s.id === selectedSettlement)?.name}"?`)) {
-                    return;
-                }
-
-                const updated = settlements.filter(s => s.id !== selectedSettlement);
-                setSettlements(updated);
-                setSelectedSettlement(updated[0].id);
-                localStorage.setItem('settlements', JSON.stringify(updated));
-                showToast('✅ הישוב נמחק');
-            };
-
-           const openInspection = async (type) => {
-  console.log("openInspection start", type);
-
-  const settlement = settlements.find(s => s.id === selectedSettlement);
-  console.log("selectedSettlement", selectedSettlement, "settlement", settlement);
-  if (!settlement) return;
-
-  if (!settlementPassword) {
-    showToast('נא להזין סיסמת יישוב');
-    return;
-  }
-
-  try {
-    await loginToSettlement(settlement, settlementPassword);
-    console.log("loginToSettlement ok");
-  } catch (e) {
-    console.error("loginToSettlement failed", e);
-    showToast('❌ שגיאה בהתחברות');
-    return;
-  }
-
-  const pages = {
-    armory: 'armory.html',
-    armon: 'armon.html',
-    tech: 'tech.html'
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2500);
   };
 
-  console.log("navigating to", pages[type], "type=", type);
+  // Keep settlements persisted
+  useEffect(() => { saveSettlements(settlements); }, [settlements]);
 
-  window.location.href = pages[type];
-};
+  // Keep selected settlement persisted
+  useEffect(() => {
+    if (selectedSettlement) {
+      try { localStorage.setItem(STORAGE_KEYS.selectedSettlement, selectedSettlement); } catch (e) {}
+    }
+  }, [selectedSettlement]);
 
+  // PWA install prompt
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
+  const handleInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    try { await deferredPrompt.userChoice; } catch (e) {}
+    setDeferredPrompt(null);
+  };
 
-            return (
-                <div className="app-container">
-                    <div className="header">
-                        <div className="header-content">
-                            <h1>🛡️ ביקורות נשקייה</h1>
-                            <div className="header-subtitle">מערכת ניהול ביקורות מאובטחת</div>
-                            {deferredPrompt && (
-                                <button
-                                    onClick={handleInstall}
-                                    style={{
-                                        marginTop: '16px',
-                                        padding: '12px 24px',
-                                        background: 'var(--accent)',
-                                        border: 'none',
-                                        borderRadius: '12px',
-                                        color: 'white',
-                                        fontSize: '1rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        margin: '16px auto 0',
-                                        boxShadow: 'var(--shadow)',
-                                        transition: 'all 0.3s'
-                                    }}
-                                    onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                                    onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
-                                >
-                                    📲 התקן אפליקציה
-                                </button>
-                            )}
-                        </div>
-                    </div>
+  const addSettlement = () => {
+    const name = (newSettlementName || '').trim();
+    if (!name) return;
 
-                    <div className="settlement-card">
-                        <h2>📍 בחירת ישוב</h2>
-                        <select 
-                            className="settlement-select"
-                            value={selectedSettlement}
-                            onChange={(e) => setSelectedSettlement(e.target.value)}
-                        >
-                            {settlements.map(settlement => (
-                                <option key={settlement.id} value={settlement.id}>
-                                    {settlement.name}
-                                </option>
-                            ))}
-                        </select>
-                        <input
-  type="password"
-  placeholder="סיסמת יישוב"
-  value={settlementPassword}
-  onChange={(e) => setSettlementPassword(e.target.value)}
-  style={{
-    width: '100%',
-    padding: '10px',
-    marginTop: '10px',
-    borderRadius: '8px',
-    border: '1px solid #ccc'
-  }}
-/>
+    const id = makeSettlementId(name);
+    if (settlements.some(s => s.id === id || s.name === name)) {
+      showToast('ℹ️ הישוב כבר קיים');
+      return;
+    }
 
-                        <div className="settlement-actions">
-                            <button className="btn-manage btn-add" onClick={() => setShowAddModal(true)}>
-                                ➕ הוסף ישוב
-                            </button>
-                            <button className="btn-manage btn-delete" onClick={deleteSettlement}>
-                                🗑️ מחק ישוב
-                            </button>
-                        </div>
-                    </div>
+    const updated = [...settlements, { id, name, key: id }];
+    setSettlements(updated);
+    setSelectedSettlement(id);
+    setNewSettlementName('');
+    setShowAddModal(false);
+    showToast('✅ הישוב נוסף');
+  };
 
-                    <div className="inspections-grid">
-                        {INSPECTIONS.map(inspection => (
+  const deleteSettlement = () => {
+    if (settlements.length <= 1) {
+      showToast('❌ לא ניתן למחוק את הישוב האחרון');
+      return;
+    }
+    const current = settlements.find(s => s.id === selectedSettlement);
+    if (!current) return;
 
-                            <div 
-                                key={inspection.id}
-                                className="inspection-card"
-                                onClick={() => openInspection(inspection.id)}
-                            >
-                                <div className="inspection-header">
-                                    <div className="inspection-icon">{inspection.icon}</div>
-                                    <div>
-                                        <div className="inspection-title">{inspection.title}</div>
-                                        <div className="inspection-subtitle">{inspection.subtitle}</div>
-                                    </div>
-                                </div>
-                                <div className="inspection-description">
-                                    {inspection.description}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+    if (!confirm(`האם למחוק את "${current.name}"?`)) return;
 
-                    {showAddModal && (
-                        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
-                            <div className="modal" onClick={(e) => e.stopPropagation()}>
-                                <h3>➕ הוספת ישוב חדש</h3>
-                                <input
-                                    type="text"
-                                    className="modal-input"
-                                    placeholder="שם הישוב"
-                                    value={newSettlementName}
-                                    onChange={(e) => setNewSettlementName(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && addSettlement()}
-                                    autoFocus
-                                />
-                                <div className="modal-buttons">
-                                    <button className="modal-btn modal-btn-primary" onClick={addSettlement}>
-                                        הוסף
-                                    </button>
-                                    <button className="modal-btn modal-btn-secondary" onClick={() => setShowAddModal(false)}>
-                                        ביטול
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+    const updated = settlements.filter(s => s.id !== selectedSettlement);
+    setSettlements(updated);
+    setSelectedSettlement(updated[0]?.id || '');
+    showToast('✅ הישוב נמחק');
+  };
 
-                    {toast && <div className="toast">{toast}</div>}
-                </div>
-            );
-        }
+  const openInspection = async (type) => {
+    const settlement = settlements.find(s => s.id === selectedSettlement);
+    if (!settlement) return;
 
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    if (!settlementPassword) {
+      showToast('נא להזין סיסמת יישוב');
+      return;
+    }
 
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/armory-inspections/sw.js')
-                    .then((registration) => {
-                        console.log('ServiceWorker registered:', registration);
-                    })
-                    .catch((error) => {
-                        console.log('ServiceWorker registration failed:', error);
-                    });
-            });
-        }
-    </script>
+    try {
+      await loginToSettlement(settlement, settlementPassword);
+    } catch (e) {
+      showToast('❌ סיסמה שגויה / שגיאה בהתחברות');
+      return;
+    }
+
+    const pages = { armory: 'armory.html', armon: 'armon.html', tech: 'tech.html' };
+    window.location.href = pages[type] || 'index.html';
+  };
+
+  return (
+    <div className="app-container">
+      <div className="header">
+        <div className="header-content">
+          <h1>🛡️ ביקורות נשקייה</h1>
+          <div className="header-subtitle">מערכת ניהול ביקורות מאובטחת</div>
+
+          {deferredPrompt && (
+            <button
+              onClick={handleInstall}
+              style={{
+                marginTop: '16px',
+                padding: '12px 24px',
+                background: 'var(--accent)',
+                border: 'none',
+                borderRadius: '12px',
+                color: 'white',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                margin: '16px auto 0',
+                boxShadow: 'var(--shadow)',
+                transition: 'all 0.3s'
+              }}
+              onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+              onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+            >
+              📲 התקן אפליקציה
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="settlement-card">
+        <h2>📍 בחירת ישוב</h2>
+
+        <select
+          className="settlement-select"
+          value={selectedSettlement}
+          onChange={(e) => setSelectedSettlement(e.target.value)}
+        >
+          {settlements.map((settlement) => (
+            <option key={settlement.id} value={settlement.id}>
+              {settlement.name}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="password"
+          placeholder="סיסמת יישוב"
+          value={settlementPassword}
+          onChange={(e) => setSettlementPassword(e.target.value)}
+          className="settlement-input"
+        />
+
+        <div className="settlement-actions">
+          <button className="btn-manage btn-add" onClick={() => setShowAddModal(true)}>
+            ➕ הוסף ישוב
+          </button>
+          <button className="btn-manage btn-delete" onClick={deleteSettlement}>
+            🗑️ מחק ישוב
+          </button>
+        </div>
+      </div>
+
+      <div className="inspections-grid">
+        {INSPECTIONS.map((inspection) => (
+          <div
+            key={inspection.id}
+            className="inspection-card"
+            onClick={() => openInspection(inspection.id)}
+          >
+            <div className="inspection-header">
+              <div className="inspection-icon">{inspection.icon}</div>
+              <div>
+                <div className="inspection-title">{inspection.title}</div>
+                <div className="inspection-subtitle">{inspection.subtitle}</div>
+              </div>
+            </div>
+            <div className="inspection-description">{inspection.description}</div>
+          </div>
+        ))}
+      </div>
+
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>➕ הוספת ישוב חדש</h3>
+            <input
+              type="text"
+              className="modal-input"
+              placeholder="שם הישוב"
+              value={newSettlementName}
+              onChange={(e) => setNewSettlementName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addSettlement()}
+              autoFocus
+            />
+            <div className="modal-buttons">
+              <button className="modal-btn modal-btn-primary" onClick={addSettlement}>
+                הוסף
+              </button>
+              <button className="modal-btn modal-btn-secondary" onClick={() => setShowAddModal(false)}>
+                ביטול
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>
