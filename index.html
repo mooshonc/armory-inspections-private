@@ -631,14 +631,6 @@ const addSettlement = () => {
   showToast('✅ הישוב נוסף בהצלחה');
 };
 
-  const updated = [...settlements, newSettlement];
-  setSettlements(updated);
-  localStorage.setItem('settlements', JSON.stringify(updated));
-
-  setShowAddModal(false);
-  setNewSettlementName('');
-  showToast('✅ הישוב נוסף בהצלחה');
-};
 
 
 
