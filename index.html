@@ -430,6 +430,30 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
+// ✅ תמיד קיים, לא תלוי בסוגריים בתוך App
+const INSPECTIONS = [
+  {
+    id: 'armory',
+    icon: '🔫',
+    title: 'לפני ואחרי חצות',
+    subtitle: 'ביקורת נשקייה',
+    description: 'ביקורת נשק לפני ואחרי חצות - בדיקת נשקים, תחמושת וציוד'
+  },
+  {
+    id: 'armon',
+    icon: '📦',
+    title: 'מחסן ארמון',
+    subtitle: 'ספירת מלאי',
+    description: 'ביקורת פתיחה וסגירה של מחסן ארמון - ספירת ציוד צבאי'
+  },
+  {
+    id: 'tech',
+    icon: '🛡️',
+    title: 'תקינות מערכות טכנולוגיות',
+    subtitle: 'ביקורת יומית',
+    description: 'בדיקת תקינות דלתות, חלונות, מצלמות ומערכות אזעקה'
+  }
+];
 
         const App = () => {
             const [settlements, setSettlements] = useState([]);
@@ -650,7 +674,8 @@ const addSettlement = () => {
                     </div>
 
                     <div className="inspections-grid">
-                        {inspections.map(inspection => (
+                        {INSPECTIONS.map(inspection => (
+
                             <div 
                                 key={inspection.id}
                                 className="inspection-card"
