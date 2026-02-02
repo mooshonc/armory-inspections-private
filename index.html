@@ -418,6 +418,7 @@
 
   // Database
   window.db = getDatabase(app);
+  window.database = window.db;
   window.dbRef = ref;
   window.dbSet = set;
   window.dbOnValue = onValue;
@@ -611,6 +612,7 @@ const addSettlement = () => {
             };
 
            const openInspection = async (type) => {
+            console.log("INDEX VERSION", "2026-02-02 09:15", "clicked", type);
   const settlement = settlements.find(s => s.id === selectedSettlement);
   if (!settlement) return;
 
