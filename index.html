@@ -633,25 +633,23 @@ const addSettlement = async () => {
     return;
   }
 
+  if (!window.auth?.currentUser) {
+    showToast('יש לבחור יישוב ולהתחבר לפני הוספה');
+    return;
+  }
+
   const newId = name.toLowerCase().replace(/\s+/g, '_');
   const newSettlement = { id: newId, name };
 
-  // עדכון מיידי ל-UI (אופליין-פרנדלי)
   const updated = [...settlements, newSettlement];
   setSettlements(updated);
   localStorage.setItem('settlements', JSON.stringify(updated));
 
-  // Sync to Realtime Database (shared list)
   try {
-    const ok = await ensureAnonAuth();  // ✅ עכשיו זה במקום הנכון
-    if (!ok) {
-      console.warn('Anonymous auth not available; skipping remote write');
-    } else {
-      await window.dbSet(
-        window.dbRef(window.database, `public/settlements/${newId}`), // ✅ database ולא db
-        { name: newSettlement.name }
-      );
-    }
+    await window.dbSet(
+      window.dbRef(window.database, `public/settlements/${newId}`),
+      { name: newSettlement.name }
+    );
   } catch (e) {
     console.warn('settlements sync failed', e);
   }
@@ -664,22 +662,42 @@ const addSettlement = async () => {
 
 
 
-            const deleteSettlement = () => {
-                if (settlements.length === 1) {
-                    showToast('❌ לא ניתן למחוק את הישוב האחרון');
-                    return;
-                }
+            const deleteSettlement = async () => {
+  if (settlements.length === 1) {
+    showToast('❌ לא ניתן למחוק את הישוב האחרון');
+    return;
+  }
 
-                if (!confirm(`האם למחוק את "${settlements.find(s => s.id === selectedSettlement)?.name}"?`)) {
-                    return;
-                }
+  const settlement = settlements.find(s => s.id === selectedSettlement);
+  if (!settlement) return;
 
-                const updated = settlements.filter(s => s.id !== selectedSettlement);
-                setSettlements(updated);
-                setSelectedSettlement(updated[0].id);
-                localStorage.setItem('settlements', JSON.stringify(updated));
-                showToast('✅ הישוב נמחק');
-            };
+  if (!confirm(`האם למחוק את "${settlement.name}"?`)) {
+    return;
+  }
+
+  // חייבים להיות מחוברים (Email/Password של יישוב)
+  if (!window.auth?.currentUser) {
+    showToast('יש לבחור יישוב ולהתחבר לפני מחיקה');
+    return;
+  }
+
+  try {
+    // מחיקה מהענן (רשימה משותפת)
+    await window.dbRemove(
+      window.dbRef(window.database, `public/settlements/${settlement.id}`)
+    );
+  } catch (e) {
+    console.warn('remote delete failed', e);
+  }
+
+  // עדכון לוקאלי
+  const updated = settlements.filter(s => s.id !== settlement.id);
+  setSettlements(updated);
+  setSelectedSettlement(updated[0]?.id || '');
+  localStorage.setItem('settlements', JSON.stringify(updated));
+
+  showToast('✅ הישוב נמחק');
+};
 
            const openInspection = async (type) => {
   console.log("openInspection start", type);
