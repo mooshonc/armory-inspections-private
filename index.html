@@ -382,19 +382,6 @@
                 font-size: 1.2rem;
             }
         }
-    
-        .field {
-            margin-top: 12px;
-            text-align: right;
-        }
-        .field-label {
-            display: block;
-            margin: 8px 0;
-            color: var(--text-secondary);
-            font-weight: 600;
-            font-size: 0.95rem;
-        }
-    
     </style>
     <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -403,6 +390,8 @@
     onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword
+  ,
+    signOut
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import {
     getDatabase,
@@ -428,6 +417,7 @@
   window.onAuthStateChanged = onAuthStateChanged;
   window.signInWithEmailAndPassword = signInWithEmailAndPassword;
   window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+  window.signOut = signOut;
 
   // Database
   window.db = getDatabase(app);
@@ -542,11 +532,8 @@ useEffect(() => {
 const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
 
 const settlementEmailKey = (settlement) => {
-  const id = String(settlement?.id || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (id) return id;
-
-  const name = String(settlement?.name || '').trim();
-  return 's' + encodeURIComponent(name).replace(/%/g, '').toLowerCase();
+  // חשוב: המפתח חייב להיות יציב ולהתבסס על id (לא על name)
+  return String(settlement?.id || settlement?.key || '').trim();
 };
 
 const loginToSettlement = async (settlement, password) => {
@@ -562,19 +549,16 @@ const loginToSettlement = async (settlement, password) => {
     throw err;
   }
 
-  // אם כבר מחובר לאותו "יישוב-משתמש" — אין מה לעשות
+  // אם כבר מחובר לאותו יישוב — לא עושים כלום
   const currentEmail = window.auth?.currentUser?.email || '';
-  if (currentEmail.toLowerCase() === email.toLowerCase()) {
+  if (currentEmail && currentEmail.toLowerCase() === email.toLowerCase()) {
     console.log('[loginToSettlement] ✅ already signed in as', currentEmail);
-    localStorage.setItem(
-      'currentSettlement',
-      JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
-    );
+    localStorage.setItem('currentSettlement', JSON.stringify({ id: settlement?.id, name: settlement?.name, key }));
     return;
   }
 
-  // אם מחובר למישהו אחר — נתנתק קודם (מונע התנגשות מצב בין דפים)
-  if (window.auth?.currentUser) {
+  // אם מחובר למישהו אחר — נתנתק קודם (כדי למנוע מצב מעורב בין דפים)
+  if (window.auth?.currentUser && typeof window.signOut === 'function') {
     try {
       await window.signOut(window.auth);
       console.log('[loginToSettlement] signed out previous user');
@@ -583,32 +567,27 @@ const loginToSettlement = async (settlement, password) => {
     }
   }
 
-  // 1) קודם ננסה להתחבר
+  // קודם ננסה להתחבר. אם המשתמש לא קיים — ניצור ואז נתחבר.
   try {
     await window.signInWithEmailAndPassword(window.auth, email, pass);
     console.log('[loginToSettlement] ✅ signIn success');
   } catch (se) {
     console.log('[loginToSettlement] signIn error:', se.code);
 
-    // אם המשתמש לא קיים — ניצור אותו פעם ראשונה ואז נתחבר
     if (se.code === 'auth/user-not-found') {
       await window.createUserWithEmailAndPassword(window.auth, email, pass);
       console.log('[loginToSettlement] ✅ user created');
       await window.signInWithEmailAndPassword(window.auth, email, pass);
       console.log('[loginToSettlement] ✅ signIn success after create');
     } else {
-      const err = new Error('WRONG_PASSWORD');
-      err.code = 'WRONG_PASSWORD';
+      const err = new Error(se.code || 'AUTH_FAILED');
+      err.code = se.code || 'AUTH_FAILED';
       throw err;
     }
   }
 
-  localStorage.setItem(
-    'currentSettlement',
-    JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
-  );
+  localStorage.setItem('currentSettlement', JSON.stringify({ id: settlement?.id, name: settlement?.name, key }));
 };
-
 
 
 const addSettlement = () => {
