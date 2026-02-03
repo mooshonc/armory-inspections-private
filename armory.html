@@ -13,7 +13,58 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    
+    <!-- Firebase SDK (ARMORY) -->
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import {
+    getAuth,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+      import {
+        getDatabase,
+        ref,
+        push,
+        set,
+        get,
+        remove
+      } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+        authDomain: "armory-inspections-private.firebaseapp.com",
+        databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "armory-inspections-private",
+        storageBucket: "armory-inspections-private.appspot.com",
+        messagingSenderId: "415528668284",
+        appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+      };
+
+      const app = initializeApp(firebaseConfig);
+
+      window.auth = getAuth(app);
+  window.onAuthStateChanged = onAuthStateChanged;
+  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+  window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+  window.signOut = signOut;
+      window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+      window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+
+      window.db = getDatabase(app);
+      window.database = window.db;
+      window.dbRef = ref;
+      window.dbPush = push;
+      window.dbSet = set;
+      window.dbGet = get;
+      window.dbRemove = remove;
+
+      console.log("ARMORY firebase ready. currentUser=", window.auth.currentUser?.uid || null);
+    </script>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -665,62 +716,44 @@
 
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
+
+        // === Settlement helpers (from index.html) ===
         const getSettlementMeta = () => {
             try {
                 const raw = localStorage.getItem('currentSettlement');
                 return raw ? JSON.parse(raw) : null;
             } catch (e) { return null; }
         };
-
         const getSettlementKey = () => {
             const meta = getSettlementMeta();
             return meta?.key || meta?.id || 'default';
         };
 
-        const getSettlementName = () => {
-            const meta = getSettlementMeta();
-            return meta?.name || 'יישוב';
-        };
-
-        // Lazy auth: only call this right before remote save / history
         const ensureSettlementAuth = async () => {
             try {
                 if (!window.auth) return false;
                 if (window.auth.currentUser) return true;
 
-                const key = getSettlementKey();
+                const meta = getSettlementMeta();
+                const key = meta?.key || meta?.id;
                 const pass = localStorage.getItem('settlementPassword') || '';
+
                 if (!key || pass.length < 6) return false;
 
                 const email = `${key}@settlement.local`;
-
-                try {
-                    await window.signInWithEmailAndPassword(window.auth, email, pass);
-                    return true;
-                } catch (e) {
-                    const code = e?.code || '';
-                    // First-time use: create the settlement user
-                    if (code === 'auth/user-not-found') {
-                        await window.createUserWithEmailAndPassword(window.auth, email, pass);
-                        return true;
-                    }
-                    // Wrong password or other auth errors
-                    console.warn('ensureSettlementAuth failed', e);
-                    return false;
-                }
+                await window.signInWithEmailAndPassword(window.auth, email, pass);
+                return true;
             } catch (e) {
                 console.warn('ensureSettlementAuth failed', e);
                 return false;
             }
         };
 
-        const STORAGE_KEY_BASE = 'inspections_armory_local';
-        const STORAGE_KEY = `${STORAGE_KEY_BASE}_${getSettlementKey()}`;
         const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armory`;
 
 
         // Database helper
-        const DB_NAME = 'armory_inspections';
+        const DB_NAME = 'armory_inspections'; // local IndexedDB name (legacy)
         const DB_VERSION = 2;
         const STORE_NAME = 'inspections';
 
@@ -746,32 +779,21 @@
         const openDB = () => {
             return new Promise((resolve, reject) => {
                 const request = indexedDB.open(DB_NAME, DB_VERSION);
-                request.onerror = () => reject(request.error);
-                request.onsuccess = () => resolve(request.result);
+
                 request.onupgradeneeded = (event) => {
                     const db = event.target.result;
                     if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-                        store.createIndex('date', 'date', { unique: false });
-                        store.createIndex('month', 'month', { unique: false });
-                        store.createIndex('synced', 'synced', { unique: false });
-                        store.createIndex('settlement', 'settlement', { unique: false });
-                        store.createIndex('settlementMonth', ['settlement', 'month'], { unique: false });
-                    } else if (event.oldVersion < 2) {
-                        // Upgrade from version 1
-                        const store = event.target.transaction.objectStore(STORE_NAME);
-                        if (!store.indexNames.contains('settlement')) {
-                            store.createIndex('settlement', 'settlement', { unique: false });
-                        }
-                        if (!store.indexNames.contains('settlementMonth')) {
-                            store.createIndex('settlementMonth', ['settlement', 'month'], { unique: false });
-                        }
+                        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
                     }
                 };
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
             });
         };
 
-        const saveInspection = async (data) => {
+        // === Local (IndexedDB) fallback ===
+        const saveInspectionLocal = async (data) => {
             const db = await openDB();
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -782,19 +804,23 @@
             });
         };
 
-        const getInspections = async (settlement, month) => {
+        const getInspectionsLocal = async (settlement, month) => {
             const db = await openDB();
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(STORE_NAME, 'readonly');
                 const store = tx.objectStore(STORE_NAME);
-                const index = store.index('settlementMonth');
-                const request = index.getAll([settlement, month]);
-                request.onsuccess = () => resolve(request.result);
+                const request = store.getAll();
+                request.onsuccess = () => {
+                    let data = request.result || [];
+                    if (settlement?.id) data = data.filter(x => x.settlementId === settlement.id);
+                    if (month) data = data.filter(x => String(x.date || '').startsWith(month));
+                    resolve(data);
+                };
                 request.onerror = () => reject(request.error);
             });
         };
 
-        const deleteInspection = async (id) => {
+        const deleteInspectionLocal = async (id) => {
             const db = await openDB();
             return new Promise((resolve, reject) => {
                 const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -805,7 +831,117 @@
             });
         };
 
-        // Signature Pad Component
+        // === Cloud (Realtime Database) ===
+        const settlementEmailKey = (settlement) => {
+            const id = String(settlement?.key || settlement?.id || '').trim().toLowerCase().replace(/\s+/g, '_');
+            if (id) return id;
+            const name = String(settlement?.name || '').trim();
+            return 's' + encodeURIComponent(name).replace(/%/g, '').toLowerCase();
+        };
+
+        const ensureSettlementLogin = async () => {
+  const settlement = JSON.parse(localStorage.getItem('currentSettlement') || 'null');
+  const password = localStorage.getItem('settlementPassword') || '';
+
+  if (!settlement) throw new Error('NO_SETTLEMENT');
+  if (!password || String(password).length < 6) throw new Error('NO_PASSWORD');
+
+  const key = settlementEmailKey(settlement);
+  const email = `${key}@settlement.local`;
+  const curEmail = window.auth?.currentUser?.email || '';
+
+  // already signed in as the correct settlement user
+  if (curEmail && curEmail.toLowerCase() === email.toLowerCase()) {
+    return { settlement, key, password };
+  }
+
+  // signed in as someone else -> sign out first (prevents "permission denied"/wrong user)
+  if (window.auth?.currentUser) {
+    try { await window.signOut(window.auth); } catch (_) {}
+  }
+
+  try {
+    await window.signInWithEmailAndPassword(window.auth, email, password);
+  } catch (e) {
+    if (e?.code === 'auth/user-not-found') {
+      await window.createUserWithEmailAndPassword(window.auth, email, password);
+      await window.signInWithEmailAndPassword(window.auth, email, password);
+    } else {
+      throw e;
+    }
+  }
+
+  return { settlement, key, password };
+};
+
+        const cloudBaseRef = (settlementKey) =>
+            window.dbRef(window.database, REMOTE_PATH());
+
+        const saveInspectionCloud = async (data) => {
+            const { key } = await ensureSettlementLogin();
+            const base = cloudBaseRef(key);
+            const newRef = window.dbPush(base);
+            const payload = {
+                ...data,
+                settlementId: data?.settlementId || key,
+                createdAt: data?.createdAt || new Date().toISOString(),
+                createdBy: window.auth?.currentUser?.uid || null
+            };
+            await window.dbSet(newRef, payload);
+            return newRef.key;
+        };
+
+        const getInspectionsCloud = async (settlement, month) => {
+            const { key } = await ensureSettlementLogin();
+            const snap = await window.dbGet(cloudBaseRef(key));
+            const obj = snap?.val?.() || {};
+            let arr = Object.entries(obj).map(([id, val]) => ({ id, ...(val || {}) }));
+            if (month) arr = arr.filter(x => String(x.date || '').startsWith(month));
+            return arr;
+        };
+
+        const deleteInspectionCloud = async (id) => {
+            const { key } = await ensureSettlementLogin();
+            const itemRef = window.dbRef(window.database, `${REMOTE_PATH()}/${id}`);
+            await window.dbRemove(itemRef);
+        };
+
+        // === Public API used by the app ===
+        const saveInspection = async (data) => {
+            try {
+                if (window.db && window.auth && window.signInWithEmailAndPassword) {
+                    return await saveInspectionCloud(data);
+                }
+            } catch (e) {
+                console.warn('Cloud save failed, falling back to local.', e);
+            }
+            return await saveInspectionLocal(data);
+        };
+
+        const getInspections = async (settlement, month) => {
+            try {
+                if (window.db && window.auth && window.signInWithEmailAndPassword) {
+                    return await getInspectionsCloud(settlement, month);
+                }
+            } catch (e) {
+                console.warn('Cloud load failed, falling back to local.', e);
+            }
+            return await getInspectionsLocal(settlement, month);
+        };
+
+        const deleteInspection = async (id) => {
+            try {
+                if (window.db && window.auth && window.signInWithEmailAndPassword) {
+                    return await deleteInspectionCloud(id);
+                }
+            } catch (e) {
+                console.warn('Cloud delete failed, falling back to local.', e);
+            }
+            // מקומי: id הוא מספר autoIncrement
+            return await deleteInspectionLocal(id);
+        };
+
+                // Signature Pad Component
         const SignaturePad = ({ onSignatureChange, signatureData }) => {
             const canvasRef = useRef(null);
             const [isDrawing, setIsDrawing] = useState(false);
@@ -1153,43 +1289,7 @@ const deleteSettlementEntry = (id) => {
             const loadInspections = async () => {
                 try {
                     const data = await getInspections(currentSettlement, currentMonth);
-                    
-                    // Local (IndexedDB)
-                    const localList = data;
-
-                    // Remote (Realtime DB) - load only when available
-                    let remoteList = [];
-                    try {
-                        const ok = await ensureSettlementAuth();
-                        if (ok) {
-                            const r = window.dbRef(window.database, REMOTE_PATH());
-                            remoteList = await new Promise((resolve) => {
-                                window.dbOnValue(r, (snap) => {
-                                    const d = snap.val() || {};
-                                    const all = Object.entries(d).map(([k,v]) => ({ ...(v||{}), firebaseKey: k }));
-                                    // try to keep only the selected month (if createdAt is ISO)
-                                    const filtered = all.filter(x => {
-                                        const ca = x.createdAt || '';
-                                        return (typeof ca === 'string' && ca.startsWith(currentMonth)) || !currentMonth;
-                                    });
-                                    resolve(filtered);
-                                }, { onlyOnce: true });
-                            });
-                        }
-                    } catch (e) {
-                        console.warn('Remote load failed', e);
-                    }
-
-                    // Merge by firebaseKey/local id
-                    const map = new Map();
-                    localList.forEach(x => map.set(x.firebaseKey ? `f:${x.firebaseKey}` : `l:${x.id}`, x));
-                    remoteList.forEach(x => map.set(x.firebaseKey ? `f:${x.firebaseKey}` : (x.localId ? `l:${x.localId}` : `l:${x.id}`), x));
-
-                    const merged = Array.from(map.values())
-                        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-                    setInspections(merged);
-
+                    setInspections(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
                 } catch (error) {
                     console.error('Error loading inspections:', error);
                 }
@@ -1230,18 +1330,6 @@ const deleteSettlementEntry = (id) => {
                 try {
                     await saveInspection(inspection);
                     showToast('הביקורת נשמרה בהצלחה!');
-
-                    // Remote save (cloud sync) - does not block UI if it fails
-                    try {
-                        const ok = await ensureSettlementAuth();
-                        if (ok) {
-                            const payload = { ...inspection, createdAt: inspection.createdAt || Date.now() };
-                            await window.dbPush(window.dbRef(window.database, REMOTE_PATH()), payload);
-                        }
-                    } catch (e) {
-                        console.warn('Remote save failed', e);
-                    }
-
                     
                     // Reset notes, signature and photo, keep name and role for convenience
                     setNotes('תקין');

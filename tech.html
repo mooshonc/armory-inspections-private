@@ -18,7 +18,8 @@
     getAuth,
     onAuthStateChanged,
     signInWithEmailAndPassword,
-    createUserWithEmailAndPassword
+    createUserWithEmailAndPassword,
+    signOut
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
   import {
@@ -51,9 +52,10 @@
 
   // Auth
   window.auth = getAuth(app);
+  window.onAuthStateChanged = onAuthStateChanged;
   window.signInWithEmailAndPassword = signInWithEmailAndPassword;
   window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
-  window.onAuthStateChanged = onAuthStateChanged;
+  window.signOut = signOut;
 
   // Realtime Database
   window.database = getDatabase(app);
@@ -657,63 +659,75 @@
 
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
+        // ---- Settlement helpers (set by index.html after successful login) ----
         const getSettlementMeta = () => {
             try {
                 const raw = localStorage.getItem('currentSettlement');
                 return raw ? JSON.parse(raw) : null;
             } catch (e) { return null; }
         };
-
         const getSettlementKey = () => {
             const meta = getSettlementMeta();
             return meta?.key || meta?.id || 'default';
         };
+        
+// ---- Ensure logged in to this settlement (for cross-device sync) ----
+const ensureSettlementAuth = async () => {
+  try {
+    if (!window.auth) return false;
 
-        const getSettlementName = () => {
-            const meta = getSettlementMeta();
-            return meta?.name || 'יישוב';
-        };
+    const meta = getSettlementMeta();
+    const key = meta?.key || meta?.id;
+    const pass = localStorage.getItem('settlementPassword') || '';
 
-        // Lazy auth: only call this right before remote save / history
-        const ensureSettlementAuth = async () => {
-            try {
-                if (!window.auth) return false;
-                if (window.auth.currentUser) return true;
+    if (!key || String(pass).length < 6) return false;
 
-                const key = getSettlementKey();
-                const pass = localStorage.getItem('settlementPassword') || '';
-                if (!key || pass.length < 6) return false;
+    const email = `${key}@settlement.local`;
+    const curEmail = window.auth.currentUser?.email || '';
 
-                const email = `${key}@settlement.local`;
+    // already signed in as the right settlement user
+    if (curEmail && curEmail.toLowerCase() === email.toLowerCase()) return true;
 
-                try {
-                    await window.signInWithEmailAndPassword(window.auth, email, pass);
-                    return true;
-                } catch (e) {
-                    const code = e?.code || '';
-                    // First-time use: create the settlement user
-                    if (code === 'auth/user-not-found') {
-                        await window.createUserWithEmailAndPassword(window.auth, email, pass);
-                        return true;
-                    }
-                    // Wrong password or other auth errors
-                    console.warn('ensureSettlementAuth failed', e);
-                    return false;
-                }
-            } catch (e) {
-                console.warn('ensureSettlementAuth failed', e);
-                return false;
-            }
-        };
+    // signed in as someone else -> sign out first
+    if (window.auth.currentUser) {
+      try { await window.signOut(window.auth); } catch (_) {}
+    }
 
-        const STORAGE_KEY_BASE = 'inspections_tech_local';
+    try {
+      await window.signInWithEmailAndPassword(window.auth, email, pass);
+      return true;
+    } catch (e) {
+      // first time for this settlement -> create then sign in
+      if (e?.code === 'auth/user-not-found') {
+        await window.createUserWithEmailAndPassword(window.auth, email, pass);
+        await window.signInWithEmailAndPassword(window.auth, email, pass);
+        return true;
+      }
+      console.warn('ensureSettlementAuth failed', e);
+      return false;
+    }
+  } catch (e) {
+    console.warn('ensureSettlementAuth failed', e);
+    return false;
+  }
+};
+const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_tech`;
+
+        const STORAGE_KEY_BASE = 'tech_inspections';
         const STORAGE_KEY = `${STORAGE_KEY_BASE}_${getSettlementKey()}`;
-        const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_tech`;
+        
+        // Get settlement from localStorage (set by index.html)
+        const getSettlement = () => {
+            const saved = localStorage.getItem('currentSettlement');
+            if (saved) {
+                const settlement = JSON.parse(saved);
+                return settlement.name;
+            }
+            return 'פני קדם'; // Default
+        };
 
-
-        // Settlement meta comes from index.html (localStorage)
-const App = () => {
-    const SETTLEMENT = getSettlementKey();
+        const App = () => {
+            const SETTLEMENT = getSettlement();
             const [activeTab, setActiveTab] = useState('new');
             const [inspections, setInspections] = useState([]);
             const [toast, setToast] = useState('');
@@ -736,54 +750,32 @@ const App = () => {
             const signatureCanvasRef = useRef(null);
             const [isDrawing, setIsDrawing] = useState(false);
 
-            // Load inspections from localStorage
+            // Load inspections (local first, then remote if available)
             useEffect(() => {
+  (async () => {
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
-                    setInspections(JSON.parse(saved));
+                    try { setInspections(JSON.parse(saved)); } catch (e) {}
                 }
-            }, []);
 
-            const mergeInspections = (remoteList) => {
-                setInspections(prev => {
-                    const byKey = new Map();
-                    prev.forEach(i => {
-                        const k = i.firebaseKey ? `f:${i.firebaseKey}` : (i.localId ? `l:${i.localId}` : `id:${i.id}`);
-                        byKey.set(k, i);
-                    });
-                    remoteList.forEach(i => {
-                        const k = i.firebaseKey ? `f:${i.firebaseKey}` : (i.localId ? `l:${i.localId}` : `id:${i.id}`);
-                        byKey.set(k, i);
-                    });
-                    return Array.from(byKey.values()).sort((a,b)=> (b.createdAt||0) - (a.createdAt||0));
+                window.onAuthStateChanged?.(window.auth, (user) => {
+                    if (!user) return;
+                    try {
+                        const r = window.dbRef(window.database, REMOTE_PATH());
+                        window.dbOnValue(r, (snap) => {
+                            const data = snap.val() || {};
+                            const list = Object.entries(data).map(([k, v]) => ({ ...v, firebaseKey: k }))
+                                .filter(x => x && x.createdAt)
+                                .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+                            if (list.length) setInspections(list);
+                        }, { onlyOnce: true });
+                    } catch (e) {
+                        console.warn('Remote load failed', e);
+                    }
                 });
-            };
-
-            const loadRemoteInspectionsOnce = async () => {
-                const ok = await ensureSettlementAuth();
-                if (!ok) return;
-                try {
-                    const r = window.dbRef(window.database, REMOTE_PATH());
-                    window.dbOnValue(r, (snap) => {
-                        const data = snap.val() || {};
-                        const remoteList = Object.entries(data).map(([k,v]) => ({
-                            ...(v||{}),
-                            firebaseKey: k
-                        })).filter(x => x && x.createdAt);
-                        mergeInspections(remoteList);
-                    }, { onlyOnce: true });
-                } catch (e) {
-                    console.warn('Remote load failed', e);
-                }
-            };
-
-            // Load from cloud only when opening the list tab (history)
-            useEffect(() => {
-                if (activeTab === 'list') {
-                    loadRemoteInspectionsOnce();
-                }
-            }, [activeTab]);
-
+            
+  })();
+}, []);
 
             // Save inspections to localStorage
             useEffect(() => {
@@ -894,7 +886,7 @@ const App = () => {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             };
 
-            const saveInspection = async () => {
+            const saveInspection = () => {
                 if (!newInspection.date || !newInspection.time) {
                     showToast('יש למלא תאריך ושעה');
                     return;
@@ -913,25 +905,16 @@ const App = () => {
                     settlement: SETTLEMENT,
                     ...newInspection,
                     signature: signatureData,
-                    createdAt: Date.now()
+                    createdAt: new Date().toISOString()
                 };
 
                 setInspections(prev => [...prev, inspection]);
-
-                // Remote save (does not block UI)
+                // Remote save
                 try {
-                    const ok = await ensureSettlementAuth();
-                    if (ok) {
-                        const payload = { ...inspection, localId: inspection.id };
-                        const newRef = await window.dbPush(window.dbRef(window.database, REMOTE_PATH()), payload);
-                        const firebaseKey = newRef?.key || null;
-                        if (firebaseKey) {
-                            setInspections(prev => prev.map(x => x.id === inspection.id ? { ...x, firebaseKey } : x));
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Remote save failed', e);
-                }
+                    const r = window.dbRef(window.database, REMOTE_PATH());
+                    const newRef = window.dbPush(r);
+                    window.dbSet(newRef, inspection);
+                } catch (e) { console.warn('Remote save failed', e); }
 
                 showToast('הביקורת נשמרה בהצלחה!');
 
