@@ -562,27 +562,45 @@ const loginToSettlement = async (settlement, password) => {
     throw err;
   }
 
-  // 1) קודם ננסה ליצור משתמש (פעם ראשונה ליישוב)
-  try {
-    await window.createUserWithEmailAndPassword(window.auth, email, pass);
-    console.log('[loginToSettlement] ✅ user created');
-  } catch (ce) {
-    // אם כבר קיים – זה תקין, נמשיך להתחבר
-    if (ce.code !== 'auth/email-already-in-use') {
-      console.log('[loginToSettlement] create error:', ce.code);
-      throw ce;
+  // אם כבר מחובר לאותו "יישוב-משתמש" — אין מה לעשות
+  const currentEmail = window.auth?.currentUser?.email || '';
+  if (currentEmail.toLowerCase() === email.toLowerCase()) {
+    console.log('[loginToSettlement] ✅ already signed in as', currentEmail);
+    localStorage.setItem(
+      'currentSettlement',
+      JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
+    );
+    return;
+  }
+
+  // אם מחובר למישהו אחר — נתנתק קודם (מונע התנגשות מצב בין דפים)
+  if (window.auth?.currentUser) {
+    try {
+      await window.signOut(window.auth);
+      console.log('[loginToSettlement] signed out previous user');
+    } catch (e) {
+      console.warn('[loginToSettlement] signOut failed (continuing)', e);
     }
   }
 
-  // 2) עכשיו נתחבר (או עם המשתמש החדש, או עם הקיים)
+  // 1) קודם ננסה להתחבר
   try {
     await window.signInWithEmailAndPassword(window.auth, email, pass);
     console.log('[loginToSettlement] ✅ signIn success');
   } catch (se) {
     console.log('[loginToSettlement] signIn error:', se.code);
-    const err = new Error('WRONG_PASSWORD');
-    err.code = 'WRONG_PASSWORD';
-    throw err;
+
+    // אם המשתמש לא קיים — ניצור אותו פעם ראשונה ואז נתחבר
+    if (se.code === 'auth/user-not-found') {
+      await window.createUserWithEmailAndPassword(window.auth, email, pass);
+      console.log('[loginToSettlement] ✅ user created');
+      await window.signInWithEmailAndPassword(window.auth, email, pass);
+      console.log('[loginToSettlement] ✅ signIn success after create');
+    } else {
+      const err = new Error('WRONG_PASSWORD');
+      err.code = 'WRONG_PASSWORD';
+      throw err;
+    }
   }
 
   localStorage.setItem(
@@ -590,6 +608,7 @@ const loginToSettlement = async (settlement, password) => {
     JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
   );
 };
+
 
 
 const addSettlement = () => {
