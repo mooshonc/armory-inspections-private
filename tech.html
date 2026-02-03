@@ -901,15 +901,19 @@ const [selectedInspection, setSelectedInspection] = useState(null);
             const saveInspectionRemote = async (inspection) => {
     try {
       const ok = await window.ensureSettlementAuth();
-      if (!ok) throw new Error('AUTH_REQUIRED');
+      if (!ok) {
+        console.error('❌ Authentication failed - cannot sync to Firebase');
+        console.error('Settlement key:', window.getSettlementKey());
+        throw new Error('AUTH_REQUIRED');
+      }
 
-      // Use Firebase push keys to avoid invalid characters in IDs (e.g. '.' from ISO timestamps)
       const baseRef = window.dbRef(window.database, REMOTE_PATH());
 
       const firebaseKey = inspection.firebaseKey || inspection.firebaseId || inspection.firebase_id || inspection.firebaseKeyId;
       if (firebaseKey) {
         const r = window.dbRef(window.database, `${REMOTE_PATH()}/${firebaseKey}`);
         await window.dbSet(r, inspection);
+        console.log('✅ Updated existing inspection in Firebase:', firebaseKey);
         return firebaseKey;
       }
 
@@ -917,9 +921,11 @@ const [selectedInspection, setSelectedInspection] = useState(null);
       const key = newRef.key;
       const payload = { ...inspection, firebaseKey: key };
       await window.dbSet(newRef, payload);
+      console.log('✅ Saved new inspection to Firebase:', key);
       return key;
     } catch (e) {
-      console.warn('Remote save failed', e);
+      console.error('❌ Remote save failed:', e.message || e);
+      console.error('Full error:', e);
       return null;
     }
   };

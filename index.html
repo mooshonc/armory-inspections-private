@@ -519,7 +519,7 @@ const INSPECTIONS = [
                         console.warn('Cannot sync - auth failed');
                         return;
                     }
-                    const ref = window.dbRef(window.database, 'global_settlements');
+                    const ref = window.dbRef(window.database, 'public/settlements');
                     await window.dbSet(ref, settlements);
                     console.log('✅ Settlements synced to Firebase');
                 } catch (e) {
@@ -529,9 +529,8 @@ const INSPECTIONS = [
 
             const loadSettlementsFromFirebase = async () => {
                 try {
-                    const ok = await ensureAuth();
-                    if (!ok) return null;
-                    const ref = window.dbRef(window.database, 'global_settlements');
+                    // Try reading without auth first (public/settlements allows .read: true)
+                    const ref = window.dbRef(window.database, 'public/settlements');
                     const snapshot = await window.dbGet(ref);
                     if (snapshot.exists()) {
                         return snapshot.val();
@@ -539,6 +538,18 @@ const INSPECTIONS = [
                     return null;
                 } catch (e) {
                     console.error('Failed to load settlements from Firebase:', e);
+                    // If read failed, try with auth
+                    try {
+                        const ok = await ensureAuth();
+                        if (!ok) return null;
+                        const ref = window.dbRef(window.database, 'public/settlements');
+                        const snapshot = await window.dbGet(ref);
+                        if (snapshot.exists()) {
+                            return snapshot.val();
+                        }
+                    } catch (e2) {
+                        console.error('Failed even with auth:', e2);
+                    }
                     return null;
                 }
             };
@@ -616,22 +627,23 @@ const INSPECTIONS = [
                 
                 loadSettlements();
                 
-                // Set up real-time listener for settlements changes
-                const setupListener = async () => {
-                    const ok = await ensureAuth();
-                    if (!ok) return;
-                    
-                    const ref = window.dbRef(window.database, 'global_settlements');
-                    window.dbOnValue(ref, (snapshot) => {
-                        if (snapshot.exists()) {
-                            const remoteSettlements = snapshot.val();
-                            if (Array.isArray(remoteSettlements) && remoteSettlements.length > 0) {
-                                setSettlements(remoteSettlements);
-                                localStorage.setItem('settlements', JSON.stringify(remoteSettlements));
-                                console.log('✅ Settlements updated from Firebase');
+                // Set up real-time listener for settlements changes (public read)
+                const setupListener = () => {
+                    try {
+                        const ref = window.dbRef(window.database, 'public/settlements');
+                        window.dbOnValue(ref, (snapshot) => {
+                            if (snapshot.exists()) {
+                                const remoteSettlements = snapshot.val();
+                                if (Array.isArray(remoteSettlements) && remoteSettlements.length > 0) {
+                                    setSettlements(remoteSettlements);
+                                    localStorage.setItem('settlements', JSON.stringify(remoteSettlements));
+                                    console.log('✅ Settlements updated from Firebase');
+                                }
                             }
-                        }
-                    });
+                        });
+                    } catch (e) {
+                        console.error('Failed to setup listener:', e);
+                    }
                 };
                 
                 setupListener();
@@ -846,18 +858,6 @@ const INSPECTIONS = [
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/armory-inspections/sw.js')
-                    .then((registration) => {
-                        console.log('ServiceWorker registered:', registration);
-                    })
-                    .catch((error) => {
-                        console.log('ServiceWorker registration failed:', error);
-                    });
-            });
-        }
     </script>
 </body>
 </html>

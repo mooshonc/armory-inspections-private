@@ -741,7 +741,13 @@
       localStorage.getItem('settlementPassword') ||
       '';
 
-    if (!key || String(pass).length < 6) return false;
+    console.log('🔐 Attempting authentication for settlement:', key);
+
+    if (!key || String(pass).length < 6) {
+      console.error('❌ Auth failed: Invalid key or password too short');
+      console.error('Key:', key, 'Password length:', String(pass).length);
+      return false;
+    }
 
     const email = `${key}@settlement.local`;
     const pwSigKey = `pwSig_${key}`;
@@ -751,29 +757,43 @@
     const lastPwSig = sessionStorage.getItem(pwSigKey) || '';
 
     // If already authed to this settlement and password hasn't changed, OK.
-    if (currentEmail === email.toLowerCase() && lastPwSig === pwSig) return true;
+    if (currentEmail === email.toLowerCase() && lastPwSig === pwSig) {
+      console.log('✅ Already authenticated as:', email);
+      return true;
+    }
 
     // Otherwise, sign out and sign in again with provided password.
     if (auth.currentUser) {
+      console.log('Signing out current user:', auth.currentUser.email);
       try { await signOut(auth); } catch (e) {}
     }
 
     try {
+      console.log('Attempting sign in as:', email);
       await signInWithEmailAndPassword(auth, email, String(pass));
       sessionStorage.setItem(pwSigKey, pwSig);
+      console.log('✅ Sign in successful');
       return true;
     } catch (e) {
+      console.log('Sign in failed, attempting to create user. Error:', e.code);
       if (e?.code === 'auth/user-not-found' || e?.code === 'auth/invalid-credential') {
         try {
+          console.log('Creating new user:', email);
           await createUserWithEmailAndPassword(auth, email, String(pass));
+          await signInWithEmailAndPassword(auth, email, String(pass));
+          sessionStorage.setItem(pwSigKey, pwSig);
+          console.log('✅ User created and signed in');
+          return true;
         } catch (ce) {
-          if (ce?.code === 'auth/email-already-in-use') return false; // wrong password
+          if (ce?.code === 'auth/email-already-in-use') {
+            console.error('❌ Email already in use - wrong password');
+            return false;
+          }
+          console.error('❌ User creation failed:', ce.code, ce.message);
           throw ce;
         }
-        await signInWithEmailAndPassword(auth, email, String(pass));
-        sessionStorage.setItem(pwSigKey, pwSig);
-        return true;
       }
+      console.error('❌ Auth failed:', e.code, e.message);
       return false;
     }
   };
@@ -781,21 +801,6 @@
 </head>
 <body>
     <div id="root"></div>
-
-    <script>
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
-                    .then(registration => {
-                        console.log('SW registered:', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('SW registration failed:', error);
-                    });
-            });
-        }
-    </script>
 
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
@@ -855,7 +860,12 @@
         const saveInspectionRemote = async (inspection) => {
     try {
       const ok = await window.ensureSettlementAuth();
-      if (!ok) throw new Error('AUTH_REQUIRED');
+      if (!ok) {
+        console.error('❌ Authentication failed - cannot sync to Firebase');
+        console.error('Settlement key:', window.getSettlementKey());
+        console.error('Password length:', (localStorage.getItem(`settlementPassword_${window.getSettlementKey()}`) || '').length);
+        throw new Error('AUTH_REQUIRED');
+      }
 
       // Use Firebase push keys to avoid invalid characters in IDs (e.g. '.' from ISO timestamps)
       const baseRef = window.dbRef(window.database, REMOTE_PATH());
@@ -864,6 +874,7 @@
       if (firebaseKey) {
         const r = window.dbRef(window.database, `${REMOTE_PATH()}/${firebaseKey}`);
         await window.dbSet(r, inspection);
+        console.log('✅ Updated existing inspection in Firebase:', firebaseKey);
         return firebaseKey;
       }
 
@@ -871,9 +882,11 @@
       const key = newRef.key;
       const payload = { ...inspection, firebaseKey: key };
       await window.dbSet(newRef, payload);
+      console.log('✅ Saved new inspection to Firebase:', key);
       return key;
     } catch (e) {
-      console.warn('Remote save failed', e);
+      console.error('❌ Remote save failed:', e.message || e);
+      console.error('Full error:', e);
       return null;
     }
   };
