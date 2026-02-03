@@ -669,12 +669,54 @@
             background: #b91c1c;
         }
     </style>
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+    authDomain: "armory-inspections-private.firebaseapp.com",
+    databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "armory-inspections-private",
+    storageBucket: "armory-inspections-private.firebasestorage.app",
+    messagingSenderId: "415528668284",
+    appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+  };
+
+  const app = initializeApp(firebaseConfig);
+
+  window.auth = getAuth(app);
+  window.onAuthStateChanged = onAuthStateChanged;
+
+  window.db = getDatabase(app);
+  window.dbRef = ref;
+  window.dbPush = push;
+  window.dbSet = set;
+  window.dbOnValue = onValue;
+  window.dbRemove = remove;
+</script>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
+        // ---- Settlement helpers (set by index.html after successful login) ----
+        const getSettlementMeta = () => {
+            try {
+                const raw = localStorage.getItem('currentSettlement');
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) { return null; }
+        };
+
+        const getSettlementKey = () => {
+            const meta = getSettlementMeta();
+            return meta?.key || meta?.id || 'default';
+        };
+
+        const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armon`;
 
         const ITEMS = [
             { code: '100012000', name: 'רובה מ4 אמתן 11.5' },
@@ -688,23 +730,20 @@
         ];
 
         const STORAGE_KEY_BASE = 'armon_inspections';
+        const STORAGE_KEY = `${STORAGE_KEY_BASE}_${getSettlementKey()}`;
         
-        // Get settlement meta from localStorage (set by index.html)
-        const getSettlementMeta = () => {
+        // Get settlement from localStorage (set by index.html)
+        const getSettlement = () => {
             const saved = localStorage.getItem('currentSettlement');
             if (saved) {
-                try {
-                    const s = JSON.parse(saved);
-                    return { id: s?.id || null, name: s?.name || 'פני קדם', key: s?.key || null };
-                } catch (e) {}
+                const settlement = JSON.parse(saved);
+                return settlement.name;
             }
-            return { id: null, name: 'פני קדם', key: null };
+            return 'פני קדם'; // Default
         };
 
-        function App() {
-            const settlementMeta = getSettlementMeta();
-            const SETTLEMENT = settlementMeta.name;
-            const STORAGE_KEY = `${STORAGE_KEY_BASE}_${settlementMeta.id || settlementMeta.key || 'default'}`;
+        const App = () => {
+            const SETTLEMENT = getSettlement();
             const [activeTab, setActiveTab] = useState('form');
             const [inspectionType, setInspectionType] = useState('');
             const [date, setDate] = useState('');
@@ -727,6 +766,34 @@
                 rank: ''
             });
             const [inspections, setInspections] = useState([]);
+
+            // ---- Realtime sync (preferred) ----
+            useEffect(() => {
+                const meta = getSettlementMeta();
+                if (!meta) return;
+
+                // Wait for auth state (if user opened this page directly, redirect to index)
+                window.onAuthStateChanged?.(window.auth, (user) => {
+                    if (!user) {
+                        // not logged in to any settlement
+                        return;
+                    }
+                    try {
+                        const r = window.dbRef(window.db, REMOTE_PATH());
+                        window.dbOnValue(r, (snap) => {
+                            const data = snap.val() || {};
+                            const list = Object.entries(data).map(([k, v]) => ({ ...v, firebaseKey: k }))
+                                .filter(x => x && x.createdAt)
+                                .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+                            if (list.length) {
+                                setInspections(list);
+                            }
+                        });
+                    } catch (e) {
+                        console.warn('Remote sync failed', e);
+                    }
+                });
+            }, []);
             const [isGenerating, setIsGenerating] = useState(false);
             const [toast, setToast] = useState('');
             const [selectedInspection, setSelectedInspection] = useState(null);
@@ -866,6 +933,13 @@
                 };
 
                 setInspections(prev => [newInspection, ...prev]);
+                // Remote save
+                try {
+                    const r = window.dbRef(window.db, REMOTE_PATH());
+                    const newRef = window.dbPush(r);
+                    window.dbSet(newRef, newInspection);
+                } catch (e) { console.warn('Remote save failed', e); }
+
                 showToast('הביקורת נשמרה בהצלחה!');
                 
                 // Reset form
@@ -1454,7 +1528,7 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                     )}
                 </div>
             );
-        }
+        };
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>

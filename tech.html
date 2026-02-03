@@ -653,25 +653,34 @@
 
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
+        // ---- Settlement helpers (set by index.html after successful login) ----
+        const getSettlementMeta = () => {
+            try {
+                const raw = localStorage.getItem('currentSettlement');
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) { return null; }
+        };
+        const getSettlementKey = () => {
+            const meta = getSettlementMeta();
+            return meta?.key || meta?.id || 'default';
+        };
+        const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_tech`;
 
         const STORAGE_KEY_BASE = 'tech_inspections';
+        const STORAGE_KEY = `${STORAGE_KEY_BASE}_${getSettlementKey()}`;
         
-        // Get settlement meta from localStorage (set by index.html)
-        const getSettlementMeta = () => {
+        // Get settlement from localStorage (set by index.html)
+        const getSettlement = () => {
             const saved = localStorage.getItem('currentSettlement');
             if (saved) {
-                try {
-                    const s = JSON.parse(saved);
-                    return { id: s?.id || null, name: s?.name || 'פני קדם', key: s?.key || null };
-                } catch (e) {}
+                const settlement = JSON.parse(saved);
+                return settlement.name;
             }
-            return { id: null, name: 'פני קדם', key: null };
+            return 'פני קדם'; // Default
         };
 
         const App = () => {
-            const settlementMeta = getSettlementMeta();
-            const SETTLEMENT = settlementMeta.name;
-            const STORAGE_KEY = `${STORAGE_KEY_BASE}_${settlementMeta.id || settlementMeta.key || 'default'}`;
+            const SETTLEMENT = getSettlement();
             const [activeTab, setActiveTab] = useState('new');
             const [inspections, setInspections] = useState([]);
             const [toast, setToast] = useState('');
@@ -694,12 +703,28 @@
             const signatureCanvasRef = useRef(null);
             const [isDrawing, setIsDrawing] = useState(false);
 
-            // Load inspections from localStorage
+            // Load inspections (local first, then remote if available)
             useEffect(() => {
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
-                    setInspections(JSON.parse(saved));
+                    try { setInspections(JSON.parse(saved)); } catch (e) {}
                 }
+
+                window.onAuthStateChanged?.(window.auth, (user) => {
+                    if (!user) return;
+                    try {
+                        const r = window.dbRef(window.database, REMOTE_PATH());
+                        window.dbOnValue(r, (snap) => {
+                            const data = snap.val() || {};
+                            const list = Object.entries(data).map(([k, v]) => ({ ...v, firebaseKey: k }))
+                                .filter(x => x && x.createdAt)
+                                .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+                            if (list.length) setInspections(list);
+                        }, { onlyOnce: true });
+                    } catch (e) {
+                        console.warn('Remote load failed', e);
+                    }
+                });
             }, []);
 
             // Save inspections to localStorage
@@ -834,6 +859,13 @@
                 };
 
                 setInspections(prev => [...prev, inspection]);
+                // Remote save
+                try {
+                    const r = window.dbRef(window.database, REMOTE_PATH());
+                    const newRef = window.dbPush(r);
+                    window.dbSet(newRef, inspection);
+                } catch (e) { console.warn('Remote save failed', e); }
+
                 showToast('הביקורת נשמרה בהצלחה!');
 
                 // Reset form (keep inspector details)
