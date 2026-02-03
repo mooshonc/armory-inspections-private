@@ -760,12 +760,25 @@
     try {
       const ok = await window.ensureSettlementAuth();
       if (!ok) throw new Error('AUTH_REQUIRED');
-      const r = window.dbRef(window.database, `${REMOTE_PATH()}/${inspection.id}`);
-      await window.dbSet(r, inspection);
-      return true;
+
+      // Use Firebase push keys to avoid invalid characters in IDs (e.g. '.' from ISO timestamps)
+      const baseRef = window.dbRef(window.database, REMOTE_PATH());
+
+      const firebaseKey = inspection.firebaseKey || inspection.firebaseId || inspection.firebase_id || inspection.firebaseKeyId;
+      if (firebaseKey) {
+        const r = window.dbRef(window.database, `${REMOTE_PATH()}/${firebaseKey}`);
+        await window.dbSet(r, inspection);
+        return firebaseKey;
+      }
+
+      const newRef = window.dbPush(baseRef);
+      const key = newRef.key;
+      const payload = { ...inspection, firebaseKey: key };
+      await window.dbSet(newRef, payload);
+      return key;
     } catch (e) {
       console.warn('Remote save failed', e);
-      return false;
+      return null;
     }
   };
 
