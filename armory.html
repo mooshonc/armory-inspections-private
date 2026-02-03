@@ -889,6 +889,27 @@ const saveInspection = async (data) => {
             });
         };
 
+        const updateInspection = async (id, updates) => {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                const getRequest = store.get(id);
+                getRequest.onsuccess = () => {
+                    const record = getRequest.result;
+                    if (!record) {
+                        reject(new Error('Record not found'));
+                        return;
+                    }
+                    const updated = { ...record, ...updates };
+                    const putRequest = store.put(updated);
+                    putRequest.onsuccess = () => resolve(putRequest.result);
+                    putRequest.onerror = () => reject(putRequest.error);
+                };
+                getRequest.onerror = () => reject(getRequest.error);
+            });
+        };
+
         const getInspections = async (settlement, month) => {
             const db = await openDB();
             return new Promise((resolve, reject) => {
@@ -1299,11 +1320,21 @@ const deleteSettlementEntry = (id) => {
                 };
 
                 try {
-                    await saveInspection(inspection);
-                    showToast('הביקורת נשמרה בהצלחה!');
-
-                // Sync to cloud (per settlement)
-                saveInspectionRemote(inspection);
+                    // First save locally
+                    const localId = await saveInspection(inspection);
+                    inspection.id = localId;
+                    
+                    // Then sync to cloud (per settlement) and get Firebase key
+                    const firebaseKey = await saveInspectionRemote(inspection);
+                    
+                    if (firebaseKey) {
+                        // Update local record with Firebase key
+                        inspection.firebaseKey = firebaseKey;
+                        await updateInspection(localId, { firebaseKey });
+                        showToast('✅ הביקורת נשמרה ומסונכרנת!');
+                    } else {
+                        showToast('⚠️ נשמר מקומית, לא הצליח לסנכרן');
+                    }
                     
                     // Reset notes, signature and photo, keep name and role for convenience
                     setNotes('תקין');
@@ -1312,7 +1343,7 @@ const deleteSettlementEntry = (id) => {
                     
                 } catch (error) {
                     console.error('Error saving inspection:', error);
-                    showToast('שגיאה בשמירה');
+                    showToast('❌ שגיאה בשמירה');
                 }
             };
 

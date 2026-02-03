@@ -946,11 +946,19 @@ const saveInspection = async () => {
                     createdAt: new Date().toISOString()
                 };
 
-                setInspections(prev => [...prev, inspection]);
-                showToast('הביקורת נשמרה בהצלחה!');
+                // Sync to cloud first (per settlement)
+                const firebaseKey = await saveInspectionRemote(inspection);
+                if (firebaseKey) {
+                    inspection.firebaseKey = firebaseKey;
+                }
 
-                // Sync to cloud (per settlement)
-                saveInspectionRemote(inspection);
+                setInspections(prev => [...prev, inspection]);
+                
+                if (firebaseKey) {
+                    showToast('✅ הביקורת נשמרה ומסונכרנת!');
+                } else {
+                    showToast('⚠️ נשמר מקומית, לא הצליח לסנכרן');
+                }
 
                 // Reset form (keep inspector details)
                 const inspectorName = newInspection.inspectorName;

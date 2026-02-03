@@ -1033,11 +1033,19 @@ const saveInspection = async () => {
                     createdAt: new Date().toISOString()
                 };
 
-                setInspections(prev => [newInspection, ...prev]);
-                showToast('הביקורת נשמרה בהצלחה!');
+                // Sync to cloud first (per settlement)
+                const firebaseKey = await saveInspectionRemote(newInspection);
+                if (firebaseKey) {
+                    newInspection.firebaseKey = firebaseKey;
+                }
 
-                // Sync to cloud (per settlement)
-                saveInspectionRemote(inspection);
+                setInspections(prev => [newInspection, ...prev]);
+                
+                if (firebaseKey) {
+                    showToast('✅ הביקורת נשמרה ומסונכרנת!');
+                } else {
+                    showToast('⚠️ נשמר מקומית, לא הצליח לסנכרן');
+                }
                 
                 // Reset form
                 setInspectionType('');
