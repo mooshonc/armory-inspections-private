@@ -754,7 +754,14 @@ const ensureSettlementAuth = async () => {
     } catch (e) {
       // first time for this settlement -> create then sign in
       if (e?.code === 'auth/user-not-found') {
-        await window.createUserWithEmailAndPassword(window.auth, email, pass);
+        try {
+      await window.createUserWithEmailAndPassword(window.auth, email, pass);
+    } catch (ce) {
+      if (ce.code === 'auth/email-already-in-use') {
+        throw new Error('WRONG_PASSWORD');
+      }
+      throw ce;
+    }
         await window.signInWithEmailAndPassword(window.auth, email, pass);
         return true;
       }

@@ -383,52 +383,7 @@
             }
         }
     </style>
-    <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import {
-    getAuth,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword
-  ,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-  import {
-    getDatabase,
-    ref,
-    set,
-    onValue
-  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-    authDomain: "armory-inspections-private.firebaseapp.com",
-    databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "armory-inspections-private",
-    storageBucket: "armory-inspections-private.appspot.com",
-    messagingSenderId: "415528668284",
-    appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-  };
-
-  const app = initializeApp(firebaseConfig);
-
-  // Auth
-  window.auth = getAuth(app);
-  window.onAuthStateChanged = onAuthStateChanged;
-  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
-  window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
-  window.signOut = signOut;
-
-  // Database
-  window.db = getDatabase(app);
-  window.database = window.db;
-  window.dbRef = ref;
-  window.dbSet = set;
-  window.dbOnValue = onValue;
-</script>
-
-
-</head>
+    </head>
 <body>
     <div id="root"></div>
 
@@ -459,19 +414,33 @@ const INSPECTIONS = [
   }
 ];
 
+        
         const App = () => {
             const [settlements, setSettlements] = useState([]);
             const [selectedSettlement, setSelectedSettlement] = useState('');
+            const [settlementPassword, setSettlementPassword] = useState('');
             const [showAddModal, setShowAddModal] = useState(false);
             const [newSettlementName, setNewSettlementName] = useState('');
             const [toast, setToast] = useState('');
             const [deferredPrompt, setDeferredPrompt] = useState(null);
-const [settlementPassword, setSettlementPassword] = useState('');
-useEffect(() => {
-  if (!selectedSettlement && settlements.length > 0) {
-    setSelectedSettlement(settlements[0].id);
-  }
-}, [settlements, selectedSettlement]);
+
+            const showToast = (message) => {
+                setToast(message);
+                setTimeout(() => setToast(''), 3000);
+            };
+
+            const makeSettlementId = (nameOrId) => {
+                const s = String(nameOrId || '').trim();
+                const slug = s.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+                if (slug && slug.length >= 3) return slug;
+                // FNV-1a 32-bit hash -> ASCII id (works for Hebrew names too)
+                let h = 2166136261;
+                for (let i = 0; i < s.length; i++) {
+                    h ^= s.charCodeAt(i);
+                    h = Math.imul(h, 16777619);
+                }
+                return 's_' + (h >>> 0).toString(16);
+            };
 
             // Capture install prompt
             useEffect(() => {
@@ -483,132 +452,90 @@ useEffect(() => {
                 return () => window.removeEventListener('beforeinstallprompt', handler);
             }, []);
 
-            // Load settlements from localStorage
-            useEffect(() => {
-  onAuthStateChanged(window.auth, user => {
-    if (!user) return;
-
-    const settlementsRef = window.dbRef(window.db, `users/${user.uid}/settlements`);
-   window.dbOnValue(settlementsRef, snap => {
-  const data = snap.val() || {};
-  const list = Object.entries(data).map(([id, val]) => ({
-    id,
-    name: (typeof val === 'string') ? val : val?.name
-  })).filter(x => x.id && x.name);
-
-  setSettlements(list);
-
-  // ✅ קבע ברירת מחדל רק אם אין כבר בחירה
-  setSelectedSettlement(prev => prev || list[0]?.id || '');
-});
-
-  });
-}, []);
-
-
             const handleInstall = async () => {
                 if (!deferredPrompt) {
                     showToast('ההתקנה זמינה רק בדפדפנים נתמכים');
                     return;
                 }
-                
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
-                
-                if (outcome === 'accepted') {
-                    showToast('✅ האפליקציה הותקנה!');
-                } else {
-                    showToast('ההתקנה בוטלה');
-                }
-                
+                if (outcome === 'accepted') showToast('✅ האפליקציה הותקנה!');
+                else showToast('ההתקנה בוטלה');
                 setDeferredPrompt(null);
             };
 
-            const showToast = (message) => {
-  setToast(message);
-  setTimeout(() => setToast(''), 3000);
-};
+            // Load settlements from localStorage (local-only)
+            useEffect(() => {
+                try {
+                    const raw = localStorage.getItem('settlements');
+                    let list = raw ? JSON.parse(raw) : [];
+                    if (!Array.isArray(list)) list = [];
 
-const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+                    // Normalize ids to ASCII-safe
+                    const normalized = list.map(s => {
+                        const name = (typeof s === 'string') ? s : (s?.name || s?.id || '');
+                        const idRaw = (typeof s === 'string') ? s : (s?.id || name);
+                        return { id: makeSettlementId(idRaw), name };
+                    });
 
-const settlementEmailKey = (settlement) => {
-  // חשוב: המפתח חייב להיות יציב ולהתבסס על id (לא על name)
-  return String(settlement?.id || settlement?.key || '').trim();
-};
+                    // If empty, create a default settlement
+                    const finalList = normalized.length ? normalized : [{ id: 'default', name: 'יישוב ראשי' }];
 
-const loginToSettlement = async (settlement, password) => {
-  const key = settlementEmailKey(settlement);
-  const email = `${key}@settlement.local`;
-  const pass = String(password || '');
+                    setSettlements(finalList);
+                    localStorage.setItem('settlements', JSON.stringify(finalList));
 
-  console.log('[loginToSettlement] email=', email, 'passLen=', pass.length);
+                    // restore selected settlement
+                    const savedSel = localStorage.getItem('selectedSettlement') || '';
+                    const exists = finalList.find(x => x.id === savedSel);
+                    setSelectedSettlement(exists ? savedSel : finalList[0].id);
+                } catch (e) {
+                    const fallback = [{ id: 'default', name: 'יישוב ראשי' }];
+                    setSettlements(fallback);
+                    setSelectedSettlement('default');
+                    localStorage.setItem('settlements', JSON.stringify(fallback));
+                }
+            }, []);
 
-  if (pass.length < 6) {
-    const err = new Error('WEAK_PASSWORD');
-    err.code = 'WEAK_PASSWORD';
-    throw err;
-  }
+            // Persist selected settlement
+            useEffect(() => {
+                if (!selectedSettlement) return;
+                localStorage.setItem('selectedSettlement', selectedSettlement);
+            }, [selectedSettlement]);
 
-  // אם כבר מחובר לאותו יישוב — לא עושים כלום
-  const currentEmail = window.auth?.currentUser?.email || '';
-  if (currentEmail && currentEmail.toLowerCase() === email.toLowerCase()) {
-    console.log('[loginToSettlement] ✅ already signed in as', currentEmail);
-    localStorage.setItem('currentSettlement', JSON.stringify({ id: settlement?.id, name: settlement?.name, key }));
-    return;
-  }
+            // Load password for selected settlement (per-device, per-settlement)
+            useEffect(() => {
+                if (!selectedSettlement) return;
+                const saved = localStorage.getItem(`settlementPassword_${selectedSettlement}`) || '';
+                setSettlementPassword(saved);
+            }, [selectedSettlement]);
 
-  // אם מחובר למישהו אחר — נתנתק קודם (כדי למנוע מצב מעורב בין דפים)
-  if (window.auth?.currentUser && typeof window.signOut === 'function') {
-    try {
-      await window.signOut(window.auth);
-      console.log('[loginToSettlement] signed out previous user');
-    } catch (e) {
-      console.warn('[loginToSettlement] signOut failed (continuing)', e);
-    }
-  }
+            // Persist password for selected settlement
+            useEffect(() => {
+                if (!selectedSettlement) return;
+                localStorage.setItem(`settlementPassword_${selectedSettlement}`, settlementPassword);
+            }, [selectedSettlement, settlementPassword]);
 
-  // קודם ננסה להתחבר. אם המשתמש לא קיים — ניצור ואז נתחבר.
-  try {
-    await window.signInWithEmailAndPassword(window.auth, email, pass);
-    console.log('[loginToSettlement] ✅ signIn success');
-  } catch (se) {
-    console.log('[loginToSettlement] signIn error:', se.code);
+            const addSettlement = () => {
+                if (!newSettlementName.trim()) {
+                    showToast('נא להזין שם ישוב');
+                    return;
+                }
 
-    if (se.code === 'auth/user-not-found') {
-      await window.createUserWithEmailAndPassword(window.auth, email, pass);
-      console.log('[loginToSettlement] ✅ user created');
-      await window.signInWithEmailAndPassword(window.auth, email, pass);
-      console.log('[loginToSettlement] ✅ signIn success after create');
-    } else {
-      const err = new Error(se.code || 'AUTH_FAILED');
-      err.code = se.code || 'AUTH_FAILED';
-      throw err;
-    }
-  }
+                const newId = makeSettlementId(newSettlementName);
+                if (settlements.some(s => s.id === newId)) {
+                    showToast('היישוב כבר קיים');
+                    return;
+                }
 
-  localStorage.setItem('currentSettlement', JSON.stringify({ id: settlement?.id, name: settlement?.name, key }));
-};
+                const newSettlement = { id: newId, name: newSettlementName.trim() };
+                const updated = [...settlements, newSettlement].sort((a,b) => a.name.localeCompare(b.name, 'he'));
+                setSettlements(updated);
+                localStorage.setItem('settlements', JSON.stringify(updated));
 
-
-const addSettlement = () => {
-  if (!newSettlementName.trim()) {
-    showToast('נא להזין שם ישוב');
-    return;
-  }
-
-  const newId = newSettlementName.trim().toLowerCase().replace(/\s+/g, '_');
-  const newSettlement = { id: newId, name: newSettlementName.trim() };
-
-  const updated = [...settlements, newSettlement];
-  setSettlements(updated);
-  localStorage.setItem('settlements', JSON.stringify(updated));
-
-  setShowAddModal(false);
-  setNewSettlementName('');
-  showToast('✅ הישוב נוסף בהצלחה');
-};
-
-
+                setShowAddModal(false);
+                setNewSettlementName('');
+                showToast('✅ הישוב נוסף בהצלחה');
+            };
 
             const deleteSettlement = () => {
                 if (settlements.length === 1) {
@@ -616,50 +543,36 @@ const addSettlement = () => {
                     return;
                 }
 
-                if (!confirm(`האם למחוק את "${settlements.find(s => s.id === selectedSettlement)?.name}"?`)) {
-                    return;
-                }
+                const cur = settlements.find(s => s.id === selectedSettlement);
+                if (!confirm(`האם למחוק את "${cur?.name || selectedSettlement}"?`)) return;
 
                 const updated = settlements.filter(s => s.id !== selectedSettlement);
                 setSettlements(updated);
                 setSelectedSettlement(updated[0].id);
                 localStorage.setItem('settlements', JSON.stringify(updated));
+
+                // remove stored password for deleted settlement
+                localStorage.removeItem(`settlementPassword_${selectedSettlement}`);
+
                 showToast('✅ הישוב נמחק');
             };
 
-           const openInspection = async (type) => {
-  console.log("openInspection start", type);
+            const openInspection = (type) => {
+                const settlement = settlements.find(s => s.id === selectedSettlement);
+                if (!settlement) return;
 
-  const settlement = settlements.find(s => s.id === selectedSettlement);
-  console.log("selectedSettlement", selectedSettlement, "settlement", settlement);
-  if (!settlement) return;
+                if (!settlementPassword || settlementPassword.length < 6) {
+                    showToast('נא להזין סיסמת יישוב (לפחות 6 תווים)');
+                    return;
+                }
 
-  if (!settlementPassword) {
-    showToast('נא להזין סיסמת יישוב');
-    return;
-  }
+                localStorage.setItem('currentSettlement', JSON.stringify(settlement));
+                // global key for inspection pages to read
+                localStorage.setItem('settlementPassword', settlementPassword);
 
-  try {
-    await loginToSettlement(settlement, settlementPassword);
-    console.log("loginToSettlement ok");
-  } catch (e) {
-    console.error("loginToSettlement failed", e);
-    showToast('❌ שגיאה בהתחברות');
-    return;
-  }
-
-  const pages = {
-    armory: 'armory.html',
-    armon: 'armon.html',
-    tech: 'tech.html'
-  };
-
-  console.log("navigating to", pages[type], "type=", type);
-
-  window.location.href = pages[type];
-};
-
-
+                const pages = { armory: 'armory.html', armon: 'armon.html', tech: 'tech.html' };
+                window.location.href = pages[type];
+            };
 
             return (
                 <div className="app-container">
@@ -667,6 +580,7 @@ const addSettlement = () => {
                         <div className="header-content">
                             <h1>🛡️ ביקורות נשקייה</h1>
                             <div className="header-subtitle">מערכת ניהול ביקורות מאובטחת</div>
+
                             {deferredPrompt && (
                                 <button
                                     onClick={handleInstall}
@@ -688,8 +602,6 @@ const addSettlement = () => {
                                         boxShadow: 'var(--shadow)',
                                         transition: 'all 0.3s'
                                     }}
-                                    onMouseOver={(e) => e.target.style.transform = 'translateY(-2px)'}
-                                    onMouseOut={(e) => e.target.style.transform = 'translateY(0)'}
                                 >
                                     📲 התקן אפליקציה
                                 </button>
@@ -699,6 +611,7 @@ const addSettlement = () => {
 
                     <div className="settlement-card">
                         <h2>📍 בחירת ישוב</h2>
+
                         <select 
                             className="settlement-select"
                             value={selectedSettlement}
@@ -710,19 +623,17 @@ const addSettlement = () => {
                                 </option>
                             ))}
                         </select>
-                        <input
-  type="password"
-  placeholder="סיסמת יישוב"
-  value={settlementPassword}
-  onChange={(e) => setSettlementPassword(e.target.value)}
-  style={{
-    width: '100%',
-    padding: '10px',
-    marginTop: '10px',
-    borderRadius: '8px',
-    border: '1px solid #ccc'
-  }}
-/>
+
+                        <div style={{ marginTop: 12 }}>
+                            <div className="field-label" style={{ marginBottom: 6 }}>סיסמת יישוב</div>
+                            <input
+                                type="password"
+                                className="modal-input"
+                                placeholder="לפחות 6 תווים"
+                                value={settlementPassword}
+                                onChange={(e) => setSettlementPassword(e.target.value)}
+                            />
+                        </div>
 
                         <div className="settlement-actions">
                             <button className="btn-manage btn-add" onClick={() => setShowAddModal(true)}>
@@ -736,7 +647,6 @@ const addSettlement = () => {
 
                     <div className="inspections-grid">
                         {INSPECTIONS.map(inspection => (
-
                             <div 
                                 key={inspection.id}
                                 className="inspection-card"
@@ -785,6 +695,7 @@ const addSettlement = () => {
                 </div>
             );
         };
+
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
