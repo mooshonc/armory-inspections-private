@@ -713,7 +713,7 @@
 
         // Settlement meta comes from index.html (localStorage)
 const App = () => {
-            const SETTLEMENT = getSettlementName();
+    const SETTLEMENT = getSettlementKey();
             const [activeTab, setActiveTab] = useState('new');
             const [inspections, setInspections] = useState([]);
             const [toast, setToast] = useState('');
