@@ -703,6 +703,48 @@
     return meta?.id || meta?.key || 'default';
   };
 
+  // Remote path for syncing inspections (per settlement)
+  const REMOTE_PATH = () => `settlements/${window.getSettlementKey()}/inspections_armory`;
+
+  const mergeById = (localList, remoteList) => {
+    const map = new Map();
+    (localList || []).forEach(x => x && map.set(String(x.id), x));
+    (remoteList || []).forEach(x => x && map.set(String(x.id), x));
+    return Array.from(map.values()).sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  };
+
+  const loadInspectionsRemoteOnce = async () => {
+    try {
+      const ok = await window.ensureSettlementAuth();
+      if (!ok) return null;
+      const r = window.dbRef(window.database, REMOTE_PATH());
+      return new Promise((resolve) => {
+        window.dbOnValue(r, (snap) => {
+          const data = snap.val() || {};
+          const list = Object.values(data).filter(Boolean);
+          resolve(list);
+        }, { onlyOnce: true });
+      });
+    } catch (e) {
+      console.warn('Remote load failed', e);
+      return null;
+    }
+  };
+
+  const saveInspectionRemote = async (inspection) => {
+    try {
+      const ok = await window.ensureSettlementAuth();
+      if (!ok) throw new Error('AUTH_REQUIRED');
+      const r = window.dbRef(window.database, `${REMOTE_PATH()}/${inspection.id}`);
+      await window.dbSet(r, inspection);
+      return true;
+    } catch (e) {
+      console.warn('Remote save failed', e);
+      return false;
+    }
+  };
+
+
   // Auth that DOES NOT allow "any password" after first login.
   // If password changed since last auth for this settlement, force re-auth.
   window.ensureSettlementAuth = async () => {
@@ -1247,6 +1289,9 @@ const deleteSettlementEntry = (id) => {
                 try {
                     await saveInspection(inspection);
                     showToast('הביקורת נשמרה בהצלחה!');
+
+                // Sync to cloud (per settlement)
+                saveInspectionRemote(inspection);
                     
                     // Reset notes, signature and photo, keep name and role for convenience
                     setNotes('תקין');

@@ -71,6 +71,48 @@
     return meta?.id || meta?.key || 'default';
   };
 
+  // Remote path for syncing inspections (per settlement)
+  const REMOTE_PATH = () => `settlements/${window.getSettlementKey()}/inspections_tech`;
+
+  const mergeById = (localList, remoteList) => {
+    const map = new Map();
+    (localList || []).forEach(x => x && map.set(String(x.id), x));
+    (remoteList || []).forEach(x => x && map.set(String(x.id), x));
+    return Array.from(map.values()).sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+  };
+
+  const loadInspectionsRemoteOnce = async () => {
+    try {
+      const ok = await window.ensureSettlementAuth();
+      if (!ok) return null;
+      const r = window.dbRef(window.database, REMOTE_PATH());
+      return new Promise((resolve) => {
+        window.dbOnValue(r, (snap) => {
+          const data = snap.val() || {};
+          const list = Object.values(data).filter(Boolean);
+          resolve(list);
+        }, { onlyOnce: true });
+      });
+    } catch (e) {
+      console.warn('Remote load failed', e);
+      return null;
+    }
+  };
+
+  const saveInspectionRemote = async (inspection) => {
+    try {
+      const ok = await window.ensureSettlementAuth();
+      if (!ok) throw new Error('AUTH_REQUIRED');
+      const r = window.dbRef(window.database, `${REMOTE_PATH()}/${inspection.id}`);
+      await window.dbSet(r, inspection);
+      return true;
+    } catch (e) {
+      console.warn('Remote save failed', e);
+      return false;
+    }
+  };
+
+
   // Auth that DOES NOT allow "any password" after first login.
   // If password changed since last auth for this settlement, force re-auth.
   window.ensureSettlementAuth = async () => {
@@ -722,7 +764,19 @@
             const [activeTab, setActiveTab] = useState('new');
             const [inspections, setInspections] = useState([]);
             const [toast, setToast] = useState('');
-            const [selectedInspection, setSelectedInspection] = useState(null);
+            
+
+            // Load from cloud when opening the list/history tab
+            useEffect(() => {
+                (async () => {
+                    if (activeTab !== 'list') return;
+                    const remote = await loadInspectionsRemoteOnce();
+                    if (remote && remote.length) {
+                        setInspections(prev => mergeById(prev, remote));
+                    }
+                })();
+            }, [activeTab]);
+const [selectedInspection, setSelectedInspection] = useState(null);
 
             // New inspection form
             const [newInspection, setNewInspection] = useState({
@@ -858,7 +912,7 @@
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
             };
 
-            const saveInspection = () => {
+            const saveInspection = async () => {
                 if (!newInspection.date || !newInspection.time) {
                     showToast('יש למלא תאריך ושעה');
                     return;
@@ -882,6 +936,9 @@
 
                 setInspections(prev => [...prev, inspection]);
                 showToast('הביקורת נשמרה בהצלחה!');
+
+                // Sync to cloud (per settlement)
+                saveInspectionRemote(inspection);
 
                 // Reset form (keep inspector details)
                 const inspectorName = newInspection.inspectorName;
