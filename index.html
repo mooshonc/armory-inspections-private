@@ -519,26 +519,26 @@ const [showAddModal, setShowAddModal] = useState(false);
             };
 
             const openInspection = (type) => {
-                const settlement = settlements.find(s => s.id === selectedSettlement);
-                if (!settlement) return;
+  const settlement = settlements.find(s => s.id === selectedSettlement);
+  if (!settlement) return;
 
-                // Store selected settlement + password for inspection pages
-                localStorage.setItem('currentSettlement', JSON.stringify(settlement));
-                if (!settlementPassword || settlementPassword.length < 6) {
-                    showToast('נא להזין סיסמת יישוב (לפחות 6 תווים)');
-                    return;
-                }
-                localStorage.setItem('settlementPassword', settlementPassword);
+  if (!settlementPassword || settlementPassword.length < 6) {
+    showToast('נא להזין סיסמת יישוב (לפחות 6 תווים)');
+    return;
+  }
 
-                // Navigate to inspection page
-                const pages = {
-                    armory: 'armory.html',
-                    armon: 'armon.html',
-                    tech: 'tech.html'
-                };
+  localStorage.setItem("currentSettlement", JSON.stringify(settlement));
+  localStorage.setItem("settlementPassword", settlementPassword);
 
-                window.location.href = pages[type];
-            };
+  const pages = {
+    armory: 'armory.html',
+    armon: 'armon.html',
+    tech: 'tech.html'
+  };
+
+  window.location.href = pages[type];
+};
+
 
             const inspections = [
                 {
