@@ -716,7 +716,28 @@
             return meta?.key || meta?.id || 'default';
         };
 
-        const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armon`;
+        
+// ---- Ensure logged in to this settlement (for cross-device sync) ----
+const ensureSettlementAuth = async () => {
+  try {
+    if (!window.auth) return false;
+    if (window.auth.currentUser) return true;
+
+    const meta = getSettlementMeta();
+    const key = meta?.key || meta?.id;
+    const pass = localStorage.getItem('settlementPassword') || '';
+
+    if (!key || pass.length < 6) return false;
+
+    const email = `${key}@settlement.local`;
+    await window.signInWithEmailAndPassword(window.auth, email, pass);
+    return true;
+  } catch (e) {
+    console.warn('ensureSettlementAuth failed', e);
+    return false;
+  }
+};
+const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armon`;
 
         const ITEMS = [
             { code: '100012000', name: 'רובה מ4 אמתן 11.5' },
@@ -769,6 +790,7 @@
 
             // ---- Realtime sync (preferred) ----
             useEffect(() => {
+  (async () => {
                 const meta = getSettlementMeta();
                 if (!meta) return;
 
@@ -793,7 +815,9 @@
                         console.warn('Remote sync failed', e);
                     }
                 });
-            }, []);
+            
+  })();
+}, []);
             const [isGenerating, setIsGenerating] = useState(false);
             const [toast, setToast] = useState('');
             const [selectedInspection, setSelectedInspection] = useState(null);

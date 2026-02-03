@@ -482,21 +482,40 @@ useEffect(() => {
                 return () => window.removeEventListener('beforeinstallprompt', handler);
             }, []);
 
-            // Load settlements from localStorage
-            useEffect(() => {
-  // סנכרון רשימת יישובים בין כל המשתמשים
-  const settlementsRef = window.dbRef(window.db, 'public/settlements');
-  window.dbOnValue(settlementsRef, snap => {
-    const data = snap.val() || {};
-    const list = Object.entries(data)
-      .map(([id, val]) => ({ id, name: (typeof val === 'string') ? val : val?.name }))
-      .filter(x => x.id && x.name)
-      .sort((a,b) => a.name.localeCompare(b.name, 'he'));
-    setSettlements(list);
+            // Load settlements (local fallback + shared sync)
+useEffect(() => {
+  // 1) Local fallback (works even if Firebase rules are not set yet)
+  try {
+    const local = JSON.parse(localStorage.getItem('settlements') || '[]');
+    if (Array.isArray(local) && local.length) {
+      setSettlements(local);
+      setSelectedSettlement(prev => prev || local[0]?.id || '');
+    }
+  } catch (e) {}
 
-    // בחירת ברירת מחדל רק אם אין בחירה קיימת
-    setSelectedSettlement(prev => prev || list[0]?.id || '');
-  });
+  // 2) Shared list from Realtime Database
+  (async () => {
+    await ensureAnonAuth();
+    try {
+      const settlementsRef = window.dbRef(window.db, 'public/settlements');
+      window.dbOnValue(settlementsRef, snap => {
+        const data = snap.val() || {};
+        const list = Object.entries(data)
+          .map(([id, val]) => ({ id, name: (typeof val === 'string') ? val : val?.name }))
+          .filter(x => x.id && x.name)
+          .sort((a,b) => a.name.localeCompare(b.name, 'he'));
+
+        // אם בענן אין כלום אבל יש לוקאלי — לא נמחוק לך את הרשימה
+        if (!list.length) return;
+
+        setSettlements(list);
+        localStorage.setItem('settlements', JSON.stringify(list));
+        setSelectedSettlement(prev => prev || list[0]?.id || '');
+      });
+    } catch (e) {
+      console.warn('settlements sync failed', e);
+    }
+  })();
 }, []);
 
 
@@ -533,6 +552,18 @@ const settlementEmailKey = (settlement) => {
   return 's' + encodeURIComponent(name).replace(/%/g, '').toLowerCase();
 };
 
+
+// ---- Ensure some auth for public settlements sync (anonymous) ----
+const ensureAnonAuth = async () => {
+  try {
+    if (!window.auth) return;
+    if (window.auth.currentUser) return;
+    // Sign in anonymously so RTDB rules can allow ".write": "auth != null"
+    await window.signInAnonymously(window.auth);
+  } catch (e) {
+    console.warn('Anonymous auth failed', e);
+  }
+};
 const loginToSettlement = async (settlement, password) => {
   const key = settlementEmailKey(settlement);
   const email = `${key}@settlement.local`;

@@ -664,7 +664,28 @@
             const meta = getSettlementMeta();
             return meta?.key || meta?.id || 'default';
         };
-        const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_tech`;
+        
+// ---- Ensure logged in to this settlement (for cross-device sync) ----
+const ensureSettlementAuth = async () => {
+  try {
+    if (!window.auth) return false;
+    if (window.auth.currentUser) return true;
+
+    const meta = getSettlementMeta();
+    const key = meta?.key || meta?.id;
+    const pass = localStorage.getItem('settlementPassword') || '';
+
+    if (!key || pass.length < 6) return false;
+
+    const email = `${key}@settlement.local`;
+    await window.signInWithEmailAndPassword(window.auth, email, pass);
+    return true;
+  } catch (e) {
+    console.warn('ensureSettlementAuth failed', e);
+    return false;
+  }
+};
+const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_tech`;
 
         const STORAGE_KEY_BASE = 'tech_inspections';
         const STORAGE_KEY = `${STORAGE_KEY_BASE}_${getSettlementKey()}`;
@@ -705,6 +726,7 @@
 
             // Load inspections (local first, then remote if available)
             useEffect(() => {
+  (async () => {
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
                     try { setInspections(JSON.parse(saved)); } catch (e) {}
@@ -725,7 +747,9 @@
                         console.warn('Remote load failed', e);
                     }
                 });
-            }, []);
+            
+  })();
+}, []);
 
             // Save inspections to localStorage
             useEffect(() => {
