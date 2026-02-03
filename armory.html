@@ -50,6 +50,7 @@
       window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
 
       window.db = getDatabase(app);
+      window.database = window.db;
       window.dbRef = ref;
       window.dbPush = push;
       window.dbSet = set;
@@ -712,8 +713,43 @@
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
 
+        // === Settlement helpers (from index.html) ===
+        const getSettlementMeta = () => {
+            try {
+                const raw = localStorage.getItem('currentSettlement');
+                return raw ? JSON.parse(raw) : null;
+            } catch (e) { return null; }
+        };
+        const getSettlementKey = () => {
+            const meta = getSettlementMeta();
+            return meta?.key || meta?.id || 'default';
+        };
+
+        const ensureSettlementAuth = async () => {
+            try {
+                if (!window.auth) return false;
+                if (window.auth.currentUser) return true;
+
+                const meta = getSettlementMeta();
+                const key = meta?.key || meta?.id;
+                const pass = localStorage.getItem('settlementPassword') || '';
+
+                if (!key || pass.length < 6) return false;
+
+                const email = `${key}@settlement.local`;
+                await window.signInWithEmailAndPassword(window.auth, email, pass);
+                return true;
+            } catch (e) {
+                console.warn('ensureSettlementAuth failed', e);
+                return false;
+            }
+        };
+
+        const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armory`;
+
+
         // Database helper
-        const DB_NAME = 'armory_inspections';
+        const DB_NAME = 'armory_inspections'; // local IndexedDB name (legacy)
         const DB_VERSION = 2;
         const STORE_NAME = 'inspections';
 
@@ -824,7 +860,7 @@
         };
 
         const cloudBaseRef = (settlementKey) =>
-            window.dbRef(window.db, `settlements/${settlementKey}/armory_inspections`);
+            window.dbRef(window.database, REMOTE_PATH());
 
         const saveInspectionCloud = async (data) => {
             const { key } = await ensureSettlementLogin();
@@ -851,7 +887,7 @@
 
         const deleteInspectionCloud = async (id) => {
             const { key } = await ensureSettlementLogin();
-            const itemRef = window.dbRef(window.db, `settlements/${key}/armory_inspections/${id}`);
+            const itemRef = window.dbRef(window.database, `${REMOTE_PATH()}/${id}`);
             await window.dbRemove(itemRef);
         };
 
