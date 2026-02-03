@@ -557,14 +557,32 @@ const settlementEmailKey = (settlement) => {
 // ---- Ensure some auth for public settlements sync (anonymous) ----
 const ensureAnonAuth = async () => {
   try {
-    if (!window.auth) return;
-    if (window.auth.currentUser) return;
-    // Sign in anonymously so RTDB rules can allow ".write": "auth != null"
-    await window.signInAnonymously(window.auth);
+    // אם אין auth מודולרי - אין מה לעשות
+    if (!window.auth) return false;
+
+    // כבר מחובר
+    if (window.auth.currentUser) return true;
+
+    // אם במקרה כן חשפת signInAnonymously - נשתמש
+    if (typeof window.signInAnonymously === 'function') {
+      await window.signInAnonymously(window.auth);
+      return true;
+    }
+
+    // fallback: אם יש לך firebase compat (חלק מהדפים), ננסה גם אותו
+    if (window.firebase?.auth) {
+      await window.firebase.auth().signInAnonymously();
+      return true;
+    }
+
+    console.warn('Anonymous auth: signInAnonymously missing');
+    return false;
   } catch (e) {
     console.warn('Anonymous auth failed', e);
+    return false;
   }
 };
+
 const loginToSettlement = async (settlement, password) => {
   const key = settlementEmailKey(settlement);
   const email = `${key}@settlement.local`;
@@ -608,28 +626,41 @@ const loginToSettlement = async (settlement, password) => {
 };
 
 
-const addSettlement = () => {
-  if (!newSettlementName.trim()) {
+const addSettlement = async () => {
+  const name = newSettlementName.trim();
+  if (!name) {
     showToast('נא להזין שם ישוב');
     return;
   }
 
-  const newId = newSettlementName.trim().toLowerCase().replace(/\s+/g, '_');
-  const newSettlement = { id: newId, name: newSettlementName.trim() };
+  const newId = name.toLowerCase().replace(/\s+/g, '_');
+  const newSettlement = { id: newId, name };
 
+  // עדכון מיידי ל-UI (אופליין-פרנדלי)
   const updated = [...settlements, newSettlement];
   setSettlements(updated);
   localStorage.setItem('settlements', JSON.stringify(updated));
 
-  
   // Sync to Realtime Database (shared list)
   try {
-    window.dbSet(window.dbRef(window.db, `public/settlements/${newId}`), { name: newSettlement.name });
-  } catch (e) { console.warn('settlements sync failed', e); }
-setShowAddModal(false);
+    const ok = await ensureAnonAuth();  // ✅ עכשיו זה במקום הנכון
+    if (!ok) {
+      console.warn('Anonymous auth not available; skipping remote write');
+    } else {
+      await window.dbSet(
+        window.dbRef(window.database, `public/settlements/${newId}`), // ✅ database ולא db
+        { name: newSettlement.name }
+      );
+    }
+  } catch (e) {
+    console.warn('settlements sync failed', e);
+  }
+
+  setShowAddModal(false);
   setNewSettlementName('');
   showToast('✅ הישוב נוסף בהצלחה');
 };
+
 
 
 
