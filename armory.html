@@ -662,6 +662,24 @@
             });
         }
     </script>
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyA8riI8ptI-SJcf-vubrrYJ6L0dM0wvy1M",
+    authDomain: "amrambitachon.firebaseapp.com",
+    databaseURL: "https://amrambitachon-default-rtdb.firebaseio.com",
+    projectId: "amrambitachon",
+    storageBucket: "amrambitachon.appspot.com",
+    messagingSenderId: "801832621701",
+    appId: "1:801832621701:web:3d303d9c7f2e67a09a0e4d"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+</script>
 
     <script type="text/babel">
         const { useState, useEffect, useRef, useCallback } = React;
