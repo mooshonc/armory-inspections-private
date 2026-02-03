@@ -495,27 +495,28 @@ useEffect(() => {
 
   // 2) Shared list from Realtime Database
   (async () => {
-    await ensureAnonAuth();
-    try {
-      const settlementsRef = window.dbRef(window.db, 'public/settlements');
-      window.dbOnValue(settlementsRef, snap => {
-        const data = snap.val() || {};
-        const list = Object.entries(data)
-          .map(([id, val]) => ({ id, name: (typeof val === 'string') ? val : val?.name }))
-          .filter(x => x.id && x.name)
-          .sort((a,b) => a.name.localeCompare(b.name, 'he'));
+  try {
+    // לקריאה לא צריך auth בכלל (לפי rules: .read true)
+    const settlementsRef = window.dbRef(window.database, 'public/settlements');
+    window.dbOnValue(settlementsRef, snap => {
+      const data = snap.val() || {};
+      const list = Object.entries(data)
+        .map(([id, val]) => ({ id, name: (typeof val === 'string') ? val : val?.name }))
+        .filter(x => x.id && x.name)
+        .sort((a,b) => a.name.localeCompare(b.name, 'he'));
 
-        // אם בענן אין כלום אבל יש לוקאלי — לא נמחוק לך את הרשימה
-        if (!list.length) return;
+      // אם בענן אין כלום אבל יש לוקאלי — לא נמחוק לך את הרשימה
+      if (!list.length) return;
 
-        setSettlements(list);
-        localStorage.setItem('settlements', JSON.stringify(list));
-        setSelectedSettlement(prev => prev || list[0]?.id || '');
-      });
-    } catch (e) {
-      console.warn('settlements sync failed', e);
-    }
-  })();
+      setSettlements(list);
+      localStorage.setItem('settlements', JSON.stringify(list));
+      setSelectedSettlement(prev => prev || list[0]?.id || '');
+    });
+  } catch (e) {
+    console.warn('settlements sync failed', e);
+  }
+})();
+
 }, []);
 
 
