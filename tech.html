@@ -673,50 +673,57 @@
         
 // ---- Ensure logged in to this settlement (for cross-device sync) ----
 const ensureSettlementAuth = async () => {
-  const meta = getSettlementMeta();
-  const key = getSettlementKey();
-  const pass = String(localStorage.getItem('settlementPassword') || '');
-
-  if (!key || pass.length < 6) return false;
-
-  const email = `${key}@settlement.local`;
-
-  // אם כבר מחובר לאותו יישוב — מצוין
-  const currentEmail = (window.auth?.currentUser?.email || '').toLowerCase();
-  if (currentEmail && currentEmail === email.toLowerCase()) {
-    return true;
-  }
-
-  // אם מחובר למישהו אחר — להתנתק
-  if (window.auth?.currentUser) {
-    await window.signOut(window.auth);
-  }
-
-  // לנסות להתחבר
   try {
-    await window.signInWithEmailAndPassword(window.auth, email, pass);
-    return true;
-  } catch (e) {
-    // אם המשתמש לא קיים או שהשגיאה "מוסתרת" כ-invalid-credential —
-    // ננסה ליצור משתמש ואז להתחבר.
-    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-      try {
-        await window.createUserWithEmailAndPassword(window.auth, email, pass);
-      } catch (ce) {
-        // אם כבר קיים — סימן שהסיסמה שגויה
-        if (ce.code === 'auth/email-already-in-use') return false;
-        throw ce;
-      }
+    const meta = getSettlementMeta();
+    const key = getSettlementKey();
+    const pass = String(localStorage.getItem('settlementPassword') || '');
 
-      await window.signInWithEmailAndPassword(window.auth, email, pass);
-      return true;
+    if (!key || pass.length < 6) return false;
+
+    const email = `${key}@settlement.local`;
+    const currentEmail = (window.auth?.currentUser?.email || '').toLowerCase();
+
+    // If already signed in as this settlement, OK
+    if (currentEmail && currentEmail === email.toLowerCase()) return true;
+
+    // If signed in as someone else, sign out first (prevents "any password works")
+    if (window.auth?.currentUser) {
+      if (typeof window.signOut === 'function') {
+        await window.signOut(window.auth);
+      } else {
+        // Fallback: try compat if present
+        if (window.firebase?.auth) await window.firebase.auth().signOut();
+      }
     }
 
-    // שאר שגיאות = התחברות נכשלה
+    // Try sign in
+    try {
+      await window.signInWithEmailAndPassword(window.auth, email, pass);
+      return true;
+    } catch (e) {
+      const code = e?.code || '';
+
+      // Some projects return invalid-credential instead of user-not-found / wrong-password (enumeration protection)
+      if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+        try {
+          await window.createUserWithEmailAndPassword(window.auth, email, pass);
+        } catch (ce) {
+          // If already exists, then password is wrong
+          if (ce?.code === 'auth/email-already-in-use') return false;
+          throw ce;
+        }
+        await window.signInWithEmailAndPassword(window.auth, email, pass);
+        return true;
+      }
+
+      // wrong-password and others
+      return false;
+    }
+  } catch (err) {
+    console.warn('ensureSettlementAuth failed', err);
     return false;
   }
 };
-
 const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_tech`;
 
         const STORAGE_KEY_BASE = 'tech_inspections';
