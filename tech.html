@@ -73,6 +73,7 @@
 
   // Remote path for syncing inspections (per settlement)
   const REMOTE_PATH = () => `settlements/${window.getSettlementKey()}/inspections_tech`;
+  window.REMOTE_PATH = REMOTE_PATH; // Expose to babel scripts
 
   const mergeById = (localList, remoteList) => {
     const map = new Map();
@@ -907,11 +908,11 @@ const [selectedInspection, setSelectedInspection] = useState(null);
         throw new Error('AUTH_REQUIRED');
       }
 
-      const baseRef = window.dbRef(window.database, REMOTE_PATH());
+      const baseRef = window.dbRef(window.database, window.REMOTE_PATH());
 
       const firebaseKey = inspection.firebaseKey || inspection.firebaseId || inspection.firebase_id || inspection.firebaseKeyId;
       if (firebaseKey) {
-        const r = window.dbRef(window.database, `${REMOTE_PATH()}/${firebaseKey}`);
+        const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
         await window.dbSet(r, inspection);
         console.log('✅ Updated existing inspection in Firebase:', firebaseKey);
         return firebaseKey;
