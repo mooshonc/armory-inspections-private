@@ -382,95 +382,49 @@
                 font-size: 1.2rem;
             }
         }
-    </style>
-    <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import {
-    getAuth,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword
-  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-  import {
-    getDatabase,
-    ref,
-    set,
-    onValue,
-    remove
-  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
-    authDomain: "armory-inspections-private.firebaseapp.com",
-    databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "armory-inspections-private",
-    storageBucket: "armory-inspections-private.appspot.com",
-    messagingSenderId: "415528668284",
-    appId: "1:415528668284:web:6829c57d517c09ccf04df9"
-  };
-
-  const app = initializeApp(firebaseConfig);
-
-  // Auth
-  window.auth = getAuth(app);
-  window.onAuthStateChanged = onAuthStateChanged;
-  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
-  window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
-
-  // Database
-  window.db = getDatabase(app);
-  window.database = window.db;
-  window.dbRef = ref;
-  window.dbSet = set;
-  window.dbOnValue = onValue;
-  window.dbRemove = remove;
-</script>
-
-
+    
+        .password-section {
+            margin-top: 16px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .password-input {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(0,0,0,0.15);
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            margin-top: 6px;
+        }
+        .password-hint {
+            font-size: 0.85rem;
+            opacity: 0.85;
+            margin-top: 6px;
+        }
+</style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-// ✅ תמיד קיים, לא תלוי בסוגריים בתוך App
-const INSPECTIONS = [
-  {
-    id: 'armory',
-    icon: '🔫',
-    title: 'לפני ואחרי חצות',
-    subtitle: 'ביקורת נשקייה',
-    description: 'ביקורת נשק לפני ואחרי חצות - בדיקת נשקים, תחמושת וציוד'
-  },
-  {
-    id: 'armon',
-    icon: '📦',
-    title: 'מחסן ארמון',
-    subtitle: 'ספירת מלאי',
-    description: 'ביקורת פתיחה וסגירה של מחסן ארמון - ספירת ציוד צבאי'
-  },
-  {
-    id: 'tech',
-    icon: '🛡️',
-    title: 'תקינות מערכות טכנולוגיות',
-    subtitle: 'ביקורת יומית',
-    description: 'בדיקת תקינות דלתות, חלונות, מצלמות ומערכות אזעקה'
-  }
-];
+        const PASSWORD_KEY = 'settlementPassword';
+
 
         const App = () => {
             const [settlements, setSettlements] = useState([]);
             const [selectedSettlement, setSelectedSettlement] = useState('');
-            const [showAddModal, setShowAddModal] = useState(false);
+            
+            const [settlementPassword, setSettlementPassword] = useState(() => localStorage.getItem(PASSWORD_KEY) || '');
+const [showAddModal, setShowAddModal] = useState(false);
             const [newSettlementName, setNewSettlementName] = useState('');
             const [toast, setToast] = useState('');
             const [deferredPrompt, setDeferredPrompt] = useState(null);
-const [settlementPassword, setSettlementPassword] = useState('');
-useEffect(() => {
-  if (!selectedSettlement && settlements.length > 0) {
-    setSelectedSettlement(settlements[0].id);
-  }
-}, [settlements, selectedSettlement]);
 
             // Capture install prompt
             useEffect(() => {
@@ -482,42 +436,28 @@ useEffect(() => {
                 return () => window.removeEventListener('beforeinstallprompt', handler);
             }, []);
 
-            // Load settlements (local fallback + shared sync)
-useEffect(() => {
-  // 1) Local fallback (works even if Firebase rules are not set yet)
-  try {
-    const local = JSON.parse(localStorage.getItem('settlements') || '[]');
-    if (Array.isArray(local) && local.length) {
-      setSettlements(local);
-      setSelectedSettlement(prev => prev || local[0]?.id || '');
-    }
-  } catch (e) {}
+            // Load settlements from localStorage
+            useEffect(() => {
+                const saved = localStorage.getItem('settlements');
+                const defaultSettlements = [{ id: 'pnei_kedem', name: 'פני קדם' }];
+                
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    setSettlements(parsed);
+                    if (parsed.length > 0) {
+                        setSelectedSettlement(parsed[0].id);
+                    }
+                } else {
+                    setSettlements(defaultSettlements);
+                    setSelectedSettlement('pnei_kedem');
+                    localStorage.setItem('settlements', JSON.stringify(defaultSettlements));
+                }
+            }, []);
 
-  // 2) Shared list from Realtime Database
-  (async () => {
-  try {
-    // לקריאה לא צריך auth בכלל (לפי rules: .read true)
-    const settlementsRef = window.dbRef(window.database, 'public/settlements');
-    window.dbOnValue(settlementsRef, snap => {
-      const data = snap.val() || {};
-      const list = Object.entries(data)
-        .map(([id, val]) => ({ id, name: (typeof val === 'string') ? val : val?.name }))
-        .filter(x => x.id && x.name)
-        .sort((a,b) => a.name.localeCompare(b.name, 'he'));
-
-      // אם בענן אין כלום אבל יש לוקאלי — לא נמחוק לך את הרשימה
-      if (!list.length) return;
-
-      setSettlements(list);
-      localStorage.setItem('settlements', JSON.stringify(list));
-      setSelectedSettlement(prev => prev || list[0]?.id || '');
-    });
-  } catch (e) {
-    console.warn('settlements sync failed', e);
-  }
-})();
-
-}, []);
+            // Persist password locally (per device)
+            useEffect(() => {
+                localStorage.setItem(PASSWORD_KEY, settlementPassword);
+            }, [settlementPassword]);
 
 
             const handleInstall = async () => {
@@ -539,203 +479,90 @@ useEffect(() => {
             };
 
             const showToast = (message) => {
-  setToast(message);
-  setTimeout(() => setToast(''), 3000);
-};
+                setToast(message);
+                setTimeout(() => setToast(''), 3000);
+            };
 
-const toKey = (s) => String(s || '').trim().replace(/[.#$[\]/]/g, '-').replace(/\s+/g, '_');
+            const addSettlement = () => {
+                if (!newSettlementName.trim()) {
+                    showToast('נא להזין שם ישוב');
+                    return;
+                }
 
-const settlementEmailKey = (settlement) => {
-  const id = String(settlement?.id || '').trim().toLowerCase().replace(/\s+/g, '_');
-  if (id) return id;
+                const newId = newSettlementName.trim().toLowerCase().replace(/\s+/g, '_');
+                const newSettlement = { id: newId, name: newSettlementName.trim() };
+                
+                const updated = [...settlements, newSettlement];
+                setSettlements(updated);
+                localStorage.setItem('settlements', JSON.stringify(updated));
+                
+                setShowAddModal(false);
+                setNewSettlementName('');
+                showToast('✅ הישוב נוסף בהצלחה');
+            };
 
-  const name = String(settlement?.name || '').trim();
-  return 's' + encodeURIComponent(name).replace(/%/g, '').toLowerCase();
-};
+            const deleteSettlement = () => {
+                if (settlements.length === 1) {
+                    showToast('❌ לא ניתן למחוק את הישוב האחרון');
+                    return;
+                }
 
+                if (!confirm(`האם למחוק את "${settlements.find(s => s.id === selectedSettlement)?.name}"?`)) {
+                    return;
+                }
 
-// ---- Ensure some auth for public settlements sync (anonymous) ----
-const ensureAnonAuth = async () => {
-  try {
-    // אם אין auth מודולרי - אין מה לעשות
-    if (!window.auth) return false;
+                const updated = settlements.filter(s => s.id !== selectedSettlement);
+                setSettlements(updated);
+                setSelectedSettlement(updated[0].id);
+                localStorage.setItem('settlements', JSON.stringify(updated));
+                showToast('✅ הישוב נמחק');
+            };
 
-    // כבר מחובר
-    if (window.auth.currentUser) return true;
+            const openInspection = (type) => {
+                const settlement = settlements.find(s => s.id === selectedSettlement);
+                if (!settlement) return;
 
-    // אם במקרה כן חשפת signInAnonymously - נשתמש
-    if (typeof window.signInAnonymously === 'function') {
-      await window.signInAnonymously(window.auth);
-      return true;
-    }
+                // Store selected settlement + password for inspection pages
+                localStorage.setItem('currentSettlement', JSON.stringify(settlement));
+                if (!settlementPassword || settlementPassword.length < 6) {
+                    showToast('נא להזין סיסמת יישוב (לפחות 6 תווים)');
+                    return;
+                }
+                localStorage.setItem('settlementPassword', settlementPassword);
 
-    // fallback: אם יש לך firebase compat (חלק מהדפים), ננסה גם אותו
-    if (window.firebase?.auth) {
-      await window.firebase.auth().signInAnonymously();
-      return true;
-    }
+                // Navigate to inspection page
+                const pages = {
+                    armory: 'armory.html',
+                    armon: 'armon.html',
+                    tech: 'tech.html'
+                };
 
-    console.warn('Anonymous auth: signInAnonymously missing');
-    return false;
-  } catch (e) {
-    console.warn('Anonymous auth failed', e);
-    return false;
-  }
-};
+                window.location.href = pages[type];
+            };
 
-const loginToSettlement = async (settlement, password) => {
-  const key = settlementEmailKey(settlement);
-  const email = `${key}@settlement.local`;
-  const pass = String(password || '');
-
-  console.log('[loginToSettlement] email=', email, 'passLen=', pass.length);
-
-  if (pass.length < 6) {
-    const err = new Error('WEAK_PASSWORD');
-    err.code = 'WEAK_PASSWORD';
-    throw err;
-  }
-
-  // 1) קודם ננסה ליצור משתמש (פעם ראשונה ליישוב)
-  try {
-    await window.createUserWithEmailAndPassword(window.auth, email, pass);
-    console.log('[loginToSettlement] ✅ user created');
-  } catch (ce) {
-    // אם כבר קיים – זה תקין, נמשיך להתחבר
-    if (ce.code !== 'auth/email-already-in-use') {
-      console.log('[loginToSettlement] create error:', ce.code);
-      throw ce;
-    }
-  }
-
-  // 2) עכשיו נתחבר (או עם המשתמש החדש, או עם הקיים)
-  try {
-    await window.signInWithEmailAndPassword(window.auth, email, pass);
-    console.log('[loginToSettlement] ✅ signIn success');
-  } catch (se) {
-    console.log('[loginToSettlement] signIn error:', se.code);
-    const err = new Error('WRONG_PASSWORD');
-    err.code = 'WRONG_PASSWORD';
-    throw err;
-  }
-
-  localStorage.setItem(
-    'currentSettlement',
-    JSON.stringify({ id: settlement?.id, name: settlement?.name, key })
-  );
-};
-
-
-const addSettlement = async () => {
-  const name = newSettlementName.trim();
-  if (!name) {
-    showToast('נא להזין שם ישוב');
-    return;
-  }
-
-  if (!window.auth?.currentUser) {
-    showToast('יש לבחור יישוב ולהתחבר לפני הוספה');
-    return;
-  }
-
-  const newId = name.toLowerCase().replace(/\s+/g, '_');
-  const newSettlement = { id: newId, name };
-
-  const updated = [...settlements, newSettlement];
-  setSettlements(updated);
-  localStorage.setItem('settlements', JSON.stringify(updated));
-
-  try {
-    await window.dbSet(
-      window.dbRef(window.database, `public/settlements/${newId}`),
-      { name: newSettlement.name }
-    );
-  } catch (e) {
-    console.warn('settlements sync failed', e);
-  }
-
-  setShowAddModal(false);
-  setNewSettlementName('');
-  showToast('✅ הישוב נוסף בהצלחה');
-};
-
-
-
-
-            const deleteSettlement = async () => {
-  if (settlements.length === 1) {
-    showToast('❌ לא ניתן למחוק את הישוב האחרון');
-    return;
-  }
-
-  const settlement = settlements.find(s => s.id === selectedSettlement);
-  if (!settlement) return;
-
-  if (!confirm(`האם למחוק את "${settlement.name}"?`)) {
-    return;
-  }
-
-  // חייבים להיות מחוברים (Email/Password של יישוב)
-  if (!window.auth?.currentUser) {
-    showToast('יש לבחור יישוב ולהתחבר לפני מחיקה');
-    return;
-  }
-
-  try {
-    // מחיקה מהענן (רשימה משותפת)
-    await window.dbRemove(
-      window.dbRef(window.database, `public/settlements/${settlement.id}`)
-    );
-  } catch (e) {
-    console.warn('remote delete failed', e);
-  }
-
-  // עדכון לוקאלי
-  const updated = settlements.filter(s => s.id !== settlement.id);
-  setSettlements(updated);
-  setSelectedSettlement(updated[0]?.id || '');
-  localStorage.setItem('settlements', JSON.stringify(updated));
-
-  showToast('✅ הישוב נמחק');
-};
-
-           const openInspection = async (type) => {
-  console.log("openInspection start", type);
-
-  const settlement = settlements.find(s => s.id === selectedSettlement);
-  console.log("selectedSettlement", selectedSettlement, "settlement", settlement);
-  if (!settlement) return;
-
-  if (!settlementPassword) {
-    showToast('נא להזין סיסמת יישוב');
-    return;
-  }
-
-  try {
-    await loginToSettlement(settlement, settlementPassword);
-    console.log("loginToSettlement ok");
-
-    // ⭐️ השורות החסרות
-    localStorage.setItem("currentSettlement", JSON.stringify(settlement));
-    localStorage.setItem("settlementPassword", settlementPassword);
-
-  } catch (e) {
-    console.error("loginToSettlement failed", e);
-    showToast('❌ שגיאה בהתחברות');
-    return;
-  }
-
-  const pages = {
-    armory: 'armory.html',
-    armon: 'armon.html',
-    tech: 'tech.html'
-  };
-
-  console.log("navigating to", pages[type], "type=", type);
-  window.location.href = pages[type];
-};
-
-
+            const inspections = [
+                {
+                    id: 'armory',
+                    icon: '🔫',
+                    title: 'לפני ואחרי חצות',
+                    subtitle: 'ביקורת נשקייה',
+                    description: 'ביקורת נשק לפני ואחרי חצות - בדיקת נשקים, תחמושת וציוד'
+                },
+                {
+                    id: 'armon',
+                    icon: '📦',
+                    title: 'מחסן ארמון',
+                    subtitle: 'ספירת מלאי',
+                    description: 'ביקורת פתיחה וסגירה של מחסן ארמון - ספירת ציוד צבאי'
+                },
+                {
+                    id: 'tech',
+                    icon: '🛡️',
+                    title: 'תקינות מערכות טכנולוגיות',
+                    subtitle: 'ביקורת יומית',
+                    description: 'בדיקת תקינות דלתות, חלונות, מצלמות ומערכות אזעקה'
+                }
+            ];
 
             return (
                 <div className="app-container">
@@ -786,20 +613,6 @@ const addSettlement = async () => {
                                 </option>
                             ))}
                         </select>
-                        <input
-  type="password"
-  placeholder="סיסמת יישוב"
-  value={settlementPassword}
-  onChange={(e) => setSettlementPassword(e.target.value)}
-  style={{
-    width: '100%',
-    padding: '10px',
-    marginTop: '10px',
-    borderRadius: '8px',
-    border: '1px solid #ccc'
-  }}
-/>
-
                         <div className="settlement-actions">
                             <button className="btn-manage btn-add" onClick={() => setShowAddModal(true)}>
                                 ➕ הוסף ישוב
@@ -811,8 +624,7 @@ const addSettlement = async () => {
                     </div>
 
                     <div className="inspections-grid">
-                        {INSPECTIONS.map(inspection => (
-
+                        {inspections.map(inspection => (
                             <div 
                                 key={inspection.id}
                                 className="inspection-card"
