@@ -664,6 +664,11 @@ setShowAddModal(false);
   try {
     await loginToSettlement(settlement, settlementPassword);
     console.log("loginToSettlement ok");
+
+    // ⭐️ השורות החסרות
+    localStorage.setItem("currentSettlement", JSON.stringify(settlement));
+    localStorage.setItem("settlementPassword", settlementPassword);
+
   } catch (e) {
     console.error("loginToSettlement failed", e);
     showToast('❌ שגיאה בהתחברות');
@@ -677,7 +682,6 @@ setShowAddModal(false);
   };
 
   console.log("navigating to", pages[type], "type=", type);
-
   window.location.href = pages[type];
 };
 
