@@ -730,24 +730,50 @@
         };
 
         const ensureSettlementAuth = async () => {
-            try {
-                if (!window.auth) return false;
-                if (window.auth.currentUser) return true;
+  const meta = getSettlementMeta();
+  const key = getSettlementKey();
+  const pass = String(localStorage.getItem('settlementPassword') || '');
 
-                const meta = getSettlementMeta();
-                const key = meta?.key || meta?.id;
-                const pass = localStorage.getItem('settlementPassword') || '';
+  if (!key || pass.length < 6) return false;
 
-                if (!key || pass.length < 6) return false;
+  const email = `${key}@settlement.local`;
 
-                const email = `${key}@settlement.local`;
-                await window.signInWithEmailAndPassword(window.auth, email, pass);
-                return true;
-            } catch (e) {
-                console.warn('ensureSettlementAuth failed', e);
-                return false;
-            }
-        };
+  // אם כבר מחובר לאותו יישוב — מצוין
+  const currentEmail = (window.auth?.currentUser?.email || '').toLowerCase();
+  if (currentEmail && currentEmail === email.toLowerCase()) {
+    return true;
+  }
+
+  // אם מחובר למישהו אחר — להתנתק
+  if (window.auth?.currentUser) {
+    await window.signOut(window.auth);
+  }
+
+  // לנסות להתחבר
+  try {
+    await window.signInWithEmailAndPassword(window.auth, email, pass);
+    return true;
+  } catch (e) {
+    // אם המשתמש לא קיים או שהשגיאה "מוסתרת" כ-invalid-credential —
+    // ננסה ליצור משתמש ואז להתחבר.
+    if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+      try {
+        await window.createUserWithEmailAndPassword(window.auth, email, pass);
+      } catch (ce) {
+        // אם כבר קיים — סימן שהסיסמה שגויה
+        if (ce.code === 'auth/email-already-in-use') return false;
+        throw ce;
+      }
+
+      await window.signInWithEmailAndPassword(window.auth, email, pass);
+      return true;
+    }
+
+    // שאר שגיאות = התחברות נכשלה
+    return false;
+  }
+};
+
 
         const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armory`;
 
