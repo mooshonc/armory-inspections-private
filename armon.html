@@ -669,42 +669,111 @@
             background: #b91c1c;
         }
     </style>
-<!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import {
     getAuth,
-    onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
-    signOut
+    signOut,
+    onAuthStateChanged
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-  import { getDatabase, ref, push, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import {
+    getDatabase,
+    ref as dbRef,
+    onValue as dbOnValue,
+    push as dbPush,
+    set as dbSet,
+    remove as dbRemove,
+    get as dbGet
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
     authDomain: "armory-inspections-private.firebaseapp.com",
     databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "armory-inspections-private",
-    storageBucket: "armory-inspections-private.firebasestorage.app",
+    storageBucket: "armory-inspections-private.appspot.com",
     messagingSenderId: "415528668284",
     appId: "1:415528668284:web:6829c57d517c09ccf04df9"
   };
 
   const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const database = getDatabase(app);
 
-  window.auth = getAuth(app);
-  window.onAuthStateChanged = onAuthStateChanged;
+  // expose for babel scripts
+  window.auth = auth;
+  window.database = database;
+  window.dbRef = dbRef;
+  window.dbOnValue = dbOnValue;
+  window.dbPush = dbPush;
+  window.dbSet = dbSet;
+  window.dbRemove = dbRemove;
+  window.dbGet = dbGet;
   window.signInWithEmailAndPassword = signInWithEmailAndPassword;
   window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
   window.signOut = signOut;
+  window.onAuthStateChanged = onAuthStateChanged;
 
-  window.db = getDatabase(app);
-  window.dbRef = ref;
-  window.dbPush = push;
-  window.dbSet = set;
-  window.dbOnValue = onValue;
-  window.dbRemove = remove;
+  // Stable settlement helpers (read from index)
+  window.getSettlementMeta = () => {
+    try {
+      const raw = localStorage.getItem('currentSettlement');
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  };
+  window.getSettlementKey = () => {
+    const meta = window.getSettlementMeta();
+    return meta?.id || meta?.key || 'default';
+  };
+
+  // Auth that DOES NOT allow "any password" after first login.
+  // If password changed since last auth for this settlement, force re-auth.
+  window.ensureSettlementAuth = async () => {
+    const key = window.getSettlementKey();
+    const meta = window.getSettlementMeta();
+    const pass =
+      localStorage.getItem(`settlementPassword_${key}`) ||
+      localStorage.getItem('settlementPassword') ||
+      '';
+
+    if (!key || String(pass).length < 6) return false;
+
+    const email = `${key}@settlement.local`;
+    const pwSigKey = `pwSig_${key}`;
+    const pwSig = String(pass); // not for security, only to detect changes
+
+    const currentEmail = (auth.currentUser?.email || '').toLowerCase();
+    const lastPwSig = sessionStorage.getItem(pwSigKey) || '';
+
+    // If already authed to this settlement and password hasn't changed, OK.
+    if (currentEmail === email.toLowerCase() && lastPwSig === pwSig) return true;
+
+    // Otherwise, sign out and sign in again with provided password.
+    if (auth.currentUser) {
+      try { await signOut(auth); } catch (e) {}
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, String(pass));
+      sessionStorage.setItem(pwSigKey, pwSig);
+      return true;
+    } catch (e) {
+      if (e?.code === 'auth/user-not-found' || e?.code === 'auth/invalid-credential') {
+        try {
+          await createUserWithEmailAndPassword(auth, email, String(pass));
+        } catch (ce) {
+          if (ce?.code === 'auth/email-already-in-use') return false; // wrong password
+          throw ce;
+        }
+        await signInWithEmailAndPassword(auth, email, String(pass));
+        sessionStorage.setItem(pwSigKey, pwSig);
+        return true;
+      }
+      return false;
+    }
+  };
 </script>
 </head>
 <body>
@@ -712,74 +781,6 @@
 
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
-        // ---- Settlement helpers (set by index.html after successful login) ----
-        const getSettlementMeta = () => {
-            try {
-                const raw = localStorage.getItem('currentSettlement');
-                return raw ? JSON.parse(raw) : null;
-            } catch (e) { return null; }
-        };
-
-        const getSettlementKey = () => {
-            const meta = getSettlementMeta();
-            return meta?.key || meta?.id || 'default';
-        };
-
-        
-// ---- Ensure logged in to this settlement (for cross-device sync) ----
-const ensureSettlementAuth = async () => {
-  try {
-    const meta = getSettlementMeta();
-    const key = getSettlementKey();
-    const pass = String(localStorage.getItem('settlementPassword') || '');
-
-    if (!key || pass.length < 6) return false;
-
-    const email = `${key}@settlement.local`;
-    const currentEmail = (window.auth?.currentUser?.email || '').toLowerCase();
-
-    // If already signed in as this settlement, OK
-    if (currentEmail && currentEmail === email.toLowerCase()) return true;
-
-    // If signed in as someone else, sign out first (prevents "any password works")
-    if (window.auth?.currentUser) {
-      if (typeof window.signOut === 'function') {
-        await window.signOut(window.auth);
-      } else {
-        // Fallback: try compat if present
-        if (window.firebase?.auth) await window.firebase.auth().signOut();
-      }
-    }
-
-    // Try sign in
-    try {
-      await window.signInWithEmailAndPassword(window.auth, email, pass);
-      return true;
-    } catch (e) {
-      const code = e?.code || '';
-
-      // Some projects return invalid-credential instead of user-not-found / wrong-password (enumeration protection)
-      if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
-        try {
-          await window.createUserWithEmailAndPassword(window.auth, email, pass);
-        } catch (ce) {
-          // If already exists, then password is wrong
-          if (ce?.code === 'auth/email-already-in-use') return false;
-          throw ce;
-        }
-        await window.signInWithEmailAndPassword(window.auth, email, pass);
-        return true;
-      }
-
-      // wrong-password and others
-      return false;
-    }
-  } catch (err) {
-    console.warn('ensureSettlementAuth failed', err);
-    return false;
-  }
-};
-const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armon`;
 
         const ITEMS = [
             { code: '100012000', name: 'רובה מ4 אמתן 11.5' },
@@ -792,8 +793,7 @@ const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armon`;
             { code: '100081954', name: 'אמר"ל "עכבר"' }
         ];
 
-        const STORAGE_KEY_BASE = 'armon_inspections';
-        const STORAGE_KEY = `${STORAGE_KEY_BASE}_${getSettlementKey()}`;
+        const STORAGE_KEY = 'armon_inspections';
         
         // Get settlement from localStorage (set by index.html)
         const getSettlement = () => {
@@ -829,37 +829,6 @@ const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armon`;
                 rank: ''
             });
             const [inspections, setInspections] = useState([]);
-
-            // ---- Realtime sync (preferred) ----
-            useEffect(() => {
-  (async () => {
-                const meta = getSettlementMeta();
-                if (!meta) return;
-
-                // Wait for auth state (if user opened this page directly, redirect to index)
-                window.onAuthStateChanged?.(window.auth, (user) => {
-                    if (!user) {
-                        // not logged in to any settlement
-                        return;
-                    }
-                    try {
-                        const r = window.dbRef(window.db, REMOTE_PATH());
-                        window.dbOnValue(r, (snap) => {
-                            const data = snap.val() || {};
-                            const list = Object.entries(data).map(([k, v]) => ({ ...v, firebaseKey: k }))
-                                .filter(x => x && x.createdAt)
-                                .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-                            if (list.length) {
-                                setInspections(list);
-                            }
-                        });
-                    } catch (e) {
-                        console.warn('Remote sync failed', e);
-                    }
-                });
-            
-  })();
-}, []);
             const [isGenerating, setIsGenerating] = useState(false);
             const [toast, setToast] = useState('');
             const [selectedInspection, setSelectedInspection] = useState(null);
@@ -999,13 +968,6 @@ const REMOTE_PATH = () => `settlements/${getSettlementKey()}/inspections_armon`;
                 };
 
                 setInspections(prev => [newInspection, ...prev]);
-                // Remote save
-                try {
-                    const r = window.dbRef(window.db, REMOTE_PATH());
-                    const newRef = window.dbPush(r);
-                    window.dbSet(newRef, newInspection);
-                } catch (e) { console.warn('Remote save failed', e); }
-
                 showToast('הביקורת נשמרה בהצלחה!');
                 
                 // Reset form
@@ -1596,7 +1558,43 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
             );
         };
 
-        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        
+        const Root = () => {
+            const [authStatus, setAuthStatus] = useState({ loading: true, ok: false });
+
+            useEffect(() => {
+                (async () => {
+                    try {
+                        const ok = await (window.ensureSettlementAuth ? window.ensureSettlementAuth() : false);
+                        setAuthStatus({ loading: false, ok });
+                        if (!ok) {
+                            // block access if password is wrong / missing
+                            alert('שגיאת התחברות ליישוב. בדוק סיסמה ונסה שוב.');
+                            window.location.href = 'index.html';
+                        }
+                    } catch (e) {
+                        console.warn('ensureSettlementAuth failed', e);
+                        setAuthStatus({ loading: false, ok: false });
+                        alert('שגיאת התחברות ליישוב. בדוק סיסמה ונסה שוב.');
+                        window.location.href = 'index.html';
+                    }
+                })();
+            }, []);
+
+            if (authStatus.loading) {
+                return (
+                    <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '1.2rem', fontWeight: 700 }}>טוען...</div>
+                            <div style={{ opacity: 0.75, marginTop: 8 }}>בודק הרשאות ליישוב</div>
+                        </div>
+                    </div>
+                );
+            }
+            return authStatus.ok ? <App /> : null;
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<Root />);
     </script>
 </body>
 </html>
