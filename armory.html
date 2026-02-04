@@ -1608,15 +1608,18 @@ const deleteSettlementEntry = (id) => {
                         // Find the inspection to get its firebaseKey
                         const inspection = inspections.find(i => i.id === id);
                         
-                        // Delete from local IndexedDB
-                        await deleteInspection(id);
-                        
                         // Delete from Firebase if it has a firebaseKey
                         if (inspection?.firebaseKey) {
                             await deleteInspectionRemote(inspection.firebaseKey);
+                            // Real-time listener will update the list automatically
+                        } else {
+                            showToast('⚠️ אין firebaseKey לביקורת הזו');
+                            return;
                         }
                         
-                        await loadInspections();
+                        // Also delete from local IndexedDB
+                        await deleteInspection(id);
+                        
                         showToast('✅ הביקורת נמחקה');
                     } catch (error) {
                         console.error('Error deleting:', error);
