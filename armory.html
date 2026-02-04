@@ -718,7 +718,7 @@
     try {
       const ok = await window.ensureSettlementAuth();
       if (!ok) return null;
-      const r = window.dbRef(window.database, REMOTE_PATH());
+      const r = window.dbRef(window.database, window.REMOTE_PATH());
       return new Promise((resolve) => {
         window.dbOnValue(r, (snap) => {
           const data = snap.val() || {};
@@ -731,6 +731,7 @@
       return null;
     }
   };
+  window.loadInspectionsRemoteOnce = loadInspectionsRemoteOnce; // Expose to babel
 
     // Auth that DOES NOT allow "any password" after first login.
   // If password changed since last auth for this settlement, force re-auth.
@@ -1294,10 +1295,45 @@ const deleteSettlementEntry = (id) => {
 
             const loadInspections = async () => {
                 try {
-                    const data = await getInspections(currentSettlement, currentMonth);
-                    setInspections(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                    // Load from local IndexedDB
+                    const localData = await getInspections(currentSettlement, currentMonth);
+                    
+                    // Try to load from Firebase
+                    const remoteData = await window.loadInspectionsRemoteOnce();
+                    
+                    if (remoteData && remoteData.length > 0) {
+                        console.log(`✅ Loaded ${remoteData.length} inspections from Firebase`);
+                        
+                        // Filter by current month
+                        const filtered = remoteData.filter(item => 
+                            item.settlement === currentSettlement && 
+                            item.month === currentMonth
+                        );
+                        
+                        // Merge local and remote (remove duplicates by firebaseKey)
+                        const merged = [...filtered];
+                        const firebaseKeys = new Set(filtered.map(i => i.firebaseKey).filter(Boolean));
+                        
+                        localData.forEach(local => {
+                            if (!local.firebaseKey || !firebaseKeys.has(local.firebaseKey)) {
+                                merged.push(local);
+                            }
+                        });
+                        
+                        setInspections(merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                    } else {
+                        // No remote data, use local only
+                        setInspections(localData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                    }
                 } catch (error) {
                     console.error('Error loading inspections:', error);
+                    // Fallback to local data
+                    try {
+                        const localData = await getInspections(currentSettlement, currentMonth);
+                        setInspections(localData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                    } catch (e) {
+                        console.error('Failed to load even local data:', e);
+                    }
                 }
             };
 

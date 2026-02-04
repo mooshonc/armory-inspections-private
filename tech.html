@@ -81,12 +81,13 @@
     (remoteList || []).forEach(x => x && map.set(String(x.id), x));
     return Array.from(map.values()).sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
   };
+  window.mergeById = mergeById;
 
   const loadInspectionsRemoteOnce = async () => {
     try {
       const ok = await window.ensureSettlementAuth();
       if (!ok) return null;
-      const r = window.dbRef(window.database, REMOTE_PATH());
+      const r = window.dbRef(window.database, window.REMOTE_PATH());
       return new Promise((resolve) => {
         window.dbOnValue(r, (snap) => {
           const data = snap.val() || {};
@@ -99,6 +100,7 @@
       return null;
     }
   };
+  window.loadInspectionsRemoteOnce = loadInspectionsRemoteOnce;
 
     // Auth that DOES NOT allow "any password" after first login.
   // If password changed since last auth for this settlement, force re-auth.
@@ -757,9 +759,10 @@
             useEffect(() => {
                 (async () => {
                     if (activeTab !== 'list') return;
-                    const remote = await loadInspectionsRemoteOnce();
+                    const remote = await window.loadInspectionsRemoteOnce();
                     if (remote && remote.length) {
-                        setInspections(prev => mergeById(prev, remote));
+                        console.log(`✅ Loaded ${remote.length} tech inspections from Firebase`);
+                        setInspections(prev => window.mergeById(prev, remote));
                     }
                 })();
             }, [activeTab]);
