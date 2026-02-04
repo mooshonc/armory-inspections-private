@@ -143,13 +143,6 @@
             margin-top: 16px;
         }
 
-        .field-label {
-            font-size: 0.95rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 6px;
-        }
-
         .btn-manage {
             flex: 1;
             padding: 12px;
@@ -426,7 +419,6 @@
   const auth = getAuth(app);
   const database = getDatabase(app);
 
-  // Expose for babel scripts
   window.auth = auth;
   window.database = database;
   window.dbRef = dbRef;
@@ -494,73 +486,6 @@ const INSPECTIONS = [
                 return 's_' + (h >>> 0).toString(16);
             };
 
-            // Firebase sync functions
-            const ADMIN_EMAIL = "admin@settlements.local";
-            const ADMIN_PASSWORD = "settlements2024"; // Simple shared password for all users
-            
-            const ensureAuth = async () => {
-                if (window.auth.currentUser) return true;
-                try {
-                    await window.signInWithEmailAndPassword(window.auth, ADMIN_EMAIL, ADMIN_PASSWORD);
-                    return true;
-                } catch (e) {
-                    if (e?.code === 'auth/user-not-found' || e?.code === 'auth/invalid-credential') {
-                        try {
-                            await window.createUserWithEmailAndPassword(window.auth, ADMIN_EMAIL, ADMIN_PASSWORD);
-                            await window.signInWithEmailAndPassword(window.auth, ADMIN_EMAIL, ADMIN_PASSWORD);
-                            return true;
-                        } catch (ce) {
-                            console.error('Auth creation failed:', ce);
-                            return false;
-                        }
-                    }
-                    console.error('Auth failed:', e);
-                    return false;
-                }
-            };
-
-            const syncSettlementsToFirebase = async (settlements) => {
-                try {
-                    const ok = await ensureAuth();
-                    if (!ok) {
-                        console.warn('Cannot sync - auth failed');
-                        return;
-                    }
-                    const ref = window.dbRef(window.database, 'public/settlements');
-                    await window.dbSet(ref, settlements);
-                    console.log('✅ Settlements synced to Firebase');
-                } catch (e) {
-                    console.error('Failed to sync settlements:', e);
-                }
-            };
-
-            const loadSettlementsFromFirebase = async () => {
-                try {
-                    // Try reading without auth first (public/settlements allows .read: true)
-                    const ref = window.dbRef(window.database, 'public/settlements');
-                    const snapshot = await window.dbGet(ref);
-                    if (snapshot.exists()) {
-                        return snapshot.val();
-                    }
-                    return null;
-                } catch (e) {
-                    console.error('Failed to load settlements from Firebase:', e);
-                    // If read failed, try with auth
-                    try {
-                        const ok = await ensureAuth();
-                        if (!ok) return null;
-                        const ref = window.dbRef(window.database, 'public/settlements');
-                        const snapshot = await window.dbGet(ref);
-                        if (snapshot.exists()) {
-                            return snapshot.val();
-                        }
-                    } catch (e2) {
-                        console.error('Failed even with auth:', e2);
-                    }
-                    return null;
-                }
-            };
-
             // Capture install prompt
             useEffect(() => {
                 const handler = (e) => {
@@ -583,77 +508,36 @@ const INSPECTIONS = [
                 setDeferredPrompt(null);
             };
 
-            // Load settlements from Firebase, fallback to localStorage
+            // Load settlements from localStorage (local-only)
             useEffect(() => {
-                const loadSettlements = async () => {
-                    try {
-                        // Try to load from Firebase first
-                        const firebaseSettlements = await loadSettlementsFromFirebase();
-                        
-                        let list = [];
-                        if (firebaseSettlements && Array.isArray(firebaseSettlements)) {
-                            list = firebaseSettlements;
-                        } else {
-                            // Fallback to localStorage
-                            const raw = localStorage.getItem('settlements');
-                            list = raw ? JSON.parse(raw) : [];
-                        }
-                        
-                        if (!Array.isArray(list)) list = [];
+                try {
+                    const raw = localStorage.getItem('settlements');
+                    let list = raw ? JSON.parse(raw) : [];
+                    if (!Array.isArray(list)) list = [];
 
-                        // Normalize ids to ASCII-safe
-                        const normalized = list.map(s => {
-                            const name = (typeof s === 'string') ? s : (s?.name || s?.id || '');
-                            const idRaw = (typeof s === 'string') ? s : (s?.id || name);
-                            return { id: makeSettlementId(idRaw), name };
-                        });
+                    // Normalize ids to ASCII-safe
+                    const normalized = list.map(s => {
+                        const name = (typeof s === 'string') ? s : (s?.name || s?.id || '');
+                        const idRaw = (typeof s === 'string') ? s : (s?.id || name);
+                        return { id: makeSettlementId(idRaw), name };
+                    });
 
-                        // If empty, create a default settlement
-                        const finalList = normalized.length ? normalized : [{ id: 'default', name: 'יישוב ראשי' }];
+                    // If empty, create a default settlement
+                    const finalList = normalized.length ? normalized : [{ id: 'default', name: 'יישוב ראשי' }];
 
-                        setSettlements(finalList);
-                        localStorage.setItem('settlements', JSON.stringify(finalList));
-                        
-                        // Sync to Firebase if we loaded from localStorage
-                        if (!firebaseSettlements) {
-                            await syncSettlementsToFirebase(finalList);
-                        }
+                    setSettlements(finalList);
+                    localStorage.setItem('settlements', JSON.stringify(finalList));
 
-                        // restore selected settlement
-                        const savedSel = localStorage.getItem('selectedSettlement') || '';
-                        const exists = finalList.find(x => x.id === savedSel);
-                        setSelectedSettlement(exists ? savedSel : finalList[0].id);
-                    } catch (e) {
-                        console.error('Error loading settlements:', e);
-                        const fallback = [{ id: 'default', name: 'יישוב ראשי' }];
-                        setSettlements(fallback);
-                        setSelectedSettlement('default');
-                        localStorage.setItem('settlements', JSON.stringify(fallback));
-                    }
-                };
-                
-                loadSettlements();
-                
-                // Set up real-time listener for settlements changes (public read)
-                const setupListener = () => {
-                    try {
-                        const ref = window.dbRef(window.database, 'public/settlements');
-                        window.dbOnValue(ref, (snapshot) => {
-                            if (snapshot.exists()) {
-                                const remoteSettlements = snapshot.val();
-                                if (Array.isArray(remoteSettlements) && remoteSettlements.length > 0) {
-                                    setSettlements(remoteSettlements);
-                                    localStorage.setItem('settlements', JSON.stringify(remoteSettlements));
-                                    console.log('✅ Settlements updated from Firebase');
-                                }
-                            }
-                        });
-                    } catch (e) {
-                        console.error('Failed to setup listener:', e);
-                    }
-                };
-                
-                setupListener();
+                    // restore selected settlement
+                    const savedSel = localStorage.getItem('selectedSettlement') || '';
+                    const exists = finalList.find(x => x.id === savedSel);
+                    setSelectedSettlement(exists ? savedSel : finalList[0].id);
+                } catch (e) {
+                    const fallback = [{ id: 'default', name: 'יישוב ראשי' }];
+                    setSettlements(fallback);
+                    setSelectedSettlement('default');
+                    localStorage.setItem('settlements', JSON.stringify(fallback));
+                }
             }, []);
 
             // Persist selected settlement
@@ -675,7 +559,7 @@ const INSPECTIONS = [
                 localStorage.setItem(`settlementPassword_${selectedSettlement}`, settlementPassword);
             }, [selectedSettlement, settlementPassword]);
 
-            const addSettlement = async () => {
+            const addSettlement = () => {
                 if (!newSettlementName.trim()) {
                     showToast('נא להזין שם ישוב');
                     return;
@@ -691,16 +575,13 @@ const INSPECTIONS = [
                 const updated = [...settlements, newSettlement].sort((a,b) => a.name.localeCompare(b.name, 'he'));
                 setSettlements(updated);
                 localStorage.setItem('settlements', JSON.stringify(updated));
-                
-                // Sync to Firebase
-                await syncSettlementsToFirebase(updated);
 
                 setShowAddModal(false);
                 setNewSettlementName('');
-                showToast('✅ הישוב נוסף ומסונכרן');
+                showToast('✅ הישוב נוסף בהצלחה');
             };
 
-            const deleteSettlement = async () => {
+            const deleteSettlement = () => {
                 if (settlements.length === 1) {
                     showToast('❌ לא ניתן למחוק את הישוב האחרון');
                     return;
@@ -713,14 +594,11 @@ const INSPECTIONS = [
                 setSettlements(updated);
                 setSelectedSettlement(updated[0].id);
                 localStorage.setItem('settlements', JSON.stringify(updated));
-                
-                // Sync to Firebase
-                await syncSettlementsToFirebase(updated);
 
                 // remove stored password for deleted settlement
                 localStorage.removeItem(`settlementPassword_${selectedSettlement}`);
 
-                showToast('✅ הישוב נמחק ומסונכרן');
+                showToast('✅ הישוב נמחק');
             };
 
             const openInspection = (type) => {
@@ -868,30 +746,15 @@ const INSPECTIONS = [
         // Register Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
+                navigator.serviceWorker.register('/armory-inspections/sw.js')
                     .then((registration) => {
-                        console.log('✅ Service Worker registered:', registration.scope);
-                        
-                        // Check for updates every time the page loads
-                        registration.update();
-                        
-                        // Listen for updates
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'activated') {
-                                    console.log('🔄 New version available - reloading...');
-                                    window.location.reload();
-                                }
-                            });
-                        });
+                        console.log('ServiceWorker registered:', registration);
                     })
                     .catch((error) => {
-                        console.log('❌ Service Worker registration failed:', error);
+                        console.log('ServiceWorker registration failed:', error);
                     });
             });
         }
-
     </script>
 </body>
 </html>
