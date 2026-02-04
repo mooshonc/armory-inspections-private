@@ -948,6 +948,29 @@ const saveInspection = async (data) => {
             });
         };
 
+        const deleteInspectionRemote = async (firebaseKey) => {
+            try {
+                const ok = await window.ensureSettlementAuth();
+                if (!ok) {
+                    console.error('❌ Cannot delete - auth failed');
+                    return false;
+                }
+                
+                if (!firebaseKey) {
+                    console.warn('No firebaseKey provided for deletion');
+                    return false;
+                }
+                
+                const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
+                await window.dbRemove(r);
+                console.log('✅ Deleted inspection from Firebase:', firebaseKey);
+                return true;
+            } catch (e) {
+                console.error('❌ Remote delete failed:', e);
+                return false;
+            }
+        };
+
         // Signature Pad Component
         const SignaturePad = ({ onSignatureChange, signatureData }) => {
             const canvasRef = useRef(null);
@@ -1565,11 +1588,22 @@ const deleteSettlementEntry = (id) => {
             const handleDeleteInspection = async (id) => {
                 if (confirm('למחוק את הביקורת?')) {
                     try {
+                        // Find the inspection to get its firebaseKey
+                        const inspection = inspections.find(i => i.id === id);
+                        
+                        // Delete from local IndexedDB
                         await deleteInspection(id);
+                        
+                        // Delete from Firebase if it has a firebaseKey
+                        if (inspection?.firebaseKey) {
+                            await deleteInspectionRemote(inspection.firebaseKey);
+                        }
+                        
                         await loadInspections();
-                        showToast('הביקורת נמחקה');
+                        showToast('✅ הביקורת נמחקה');
                     } catch (error) {
                         console.error('Error deleting:', error);
+                        showToast('❌ שגיאה במחיקה');
                     }
                 }
             };

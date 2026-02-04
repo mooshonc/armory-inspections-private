@@ -867,7 +867,7 @@
             // Load from cloud when opening the list/history tab
             useEffect(() => {
                 (async () => {
-                    if (activeTab !== 'list') return;
+                    if (activeTab !== 'history') return;
                     const remote = await window.loadInspectionsRemoteOnce();
                     if (remote && remote.length) {
                         console.log(`✅ Loaded ${remote.length} armon inspections from Firebase`);
@@ -1248,10 +1248,43 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                 }
             };
 
-            const deleteInspection = (id) => {
+            const deleteInspectionRemote = async (firebaseKey) => {
+                try {
+                    const ok = await window.ensureSettlementAuth();
+                    if (!ok) {
+                        console.error('❌ Cannot delete - auth failed');
+                        return false;
+                    }
+                    
+                    if (!firebaseKey) {
+                        console.warn('No firebaseKey provided for deletion');
+                        return false;
+                    }
+                    
+                    const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
+                    await window.dbRemove(r);
+                    console.log('✅ Deleted inspection from Firebase:', firebaseKey);
+                    return true;
+                } catch (e) {
+                    console.error('❌ Remote delete failed:', e);
+                    return false;
+                }
+            };
+
+            const deleteInspection = async (id) => {
                 if (confirm('האם למחוק ביקורת זו?')) {
+                    // Find the inspection to get its firebaseKey
+                    const inspection = inspections.find(i => i.id === id);
+                    
+                    // Delete from local state
                     setInspections(prev => prev.filter(i => i.id !== id));
-                    showToast('הביקורת נמחקה');
+                    
+                    // Delete from Firebase if it has a firebaseKey
+                    if (inspection?.firebaseKey) {
+                        await deleteInspectionRemote(inspection.firebaseKey);
+                    }
+                    
+                    showToast('✅ הביקורת נמחקה');
                 }
             };
 
