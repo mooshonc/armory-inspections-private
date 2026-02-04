@@ -743,18 +743,6 @@ const INSPECTIONS = [
 
         ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 
-        // Register Service Worker
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/armory-inspections/sw.js')
-                    .then((registration) => {
-                        console.log('ServiceWorker registered:', registration);
-                    })
-                    .catch((error) => {
-                        console.log('ServiceWorker registration failed:', error);
-                    });
-            });
-        }
     </script>
 </body>
 </html>
