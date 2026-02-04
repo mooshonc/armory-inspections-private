@@ -882,8 +882,16 @@
                         
                         // Setup real-time listener
                         unsubscribe = window.dbOnValue(ref, (snapshot) => {
-                            const data = snapshot.val() || {};
-                            const remoteData = Object.values(data).filter(Boolean);
+                            const remoteData = [];
+                            
+                            // Use snapshot.forEach to get both key and value
+                            snapshot.forEach((child) => {
+                                const val = child.val();
+                                if (val) {
+                                    // Always include firebaseKey from the child key
+                                    remoteData.push({ ...val, firebaseKey: child.key });
+                                }
+                            });
                             
                             console.log(`🔄 Real-time update: ${remoteData.length} armon inspections from Firebase`);
                             
@@ -1034,7 +1042,8 @@ const [selectedInspection, setSelectedInspection] = useState(null);
       const firebaseKey = inspection.firebaseKey || inspection.firebaseId || inspection.firebase_id || inspection.firebaseKeyId;
       if (firebaseKey) {
         const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
-        await window.dbSet(r, inspection);
+        // Always include firebaseKey in the saved data
+        await window.dbSet(r, { ...inspection, firebaseKey });
         console.log('✅ Updated existing inspection in Firebase:', firebaseKey);
         return firebaseKey;
       }
@@ -1694,12 +1703,26 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                                 <div className="modal-footer">
                                     <button 
                                         className="btn-modal-delete"
-                                        onClick={() => {
-                                            if (confirm('האם למחוק ביקורת זו?')) {
-                                                setInspections(prev => prev.filter(i => i.id !== selectedInspection.id));
-                                                setSelectedInspection(null);
-                                                showToast('הביקורת נמחקה');
+                                        onClick={async () => {
+                                            if (!confirm('האם למחוק ביקורת זו?')) return;
+
+                                            const fbKey = selectedInspection?.firebaseKey;
+
+                                            // Delete from Firebase first
+                                            if (fbKey) {
+                                                const ok = await deleteInspectionRemote(fbKey);
+                                                if (!ok) {
+                                                    showToast('❌ לא הצלחתי למחוק מהענן');
+                                                    return;
+                                                }
+                                            } else {
+                                                showToast('⚠️ אין firebaseKey לביקורת הזו');
+                                                return;
                                             }
+
+                                            // Close modal (listener will update state automatically)
+                                            setSelectedInspection(null);
+                                            showToast('✅ הביקורת נמחקה');
                                         }}
                                     >
                                         🗑️ מחק ביקורת
