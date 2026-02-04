@@ -705,7 +705,6 @@
 
   // Remote path for syncing inspections (per settlement)
   const REMOTE_PATH = () => `settlements/${window.getSettlementKey()}/inspections_armory`;
-  window.REMOTE_PATH = REMOTE_PATH; // Expose to babel scripts
 
   const mergeById = (localList, remoteList) => {
     const map = new Map();
@@ -718,7 +717,7 @@
     try {
       const ok = await window.ensureSettlementAuth();
       if (!ok) return null;
-      const r = window.dbRef(window.database, window.REMOTE_PATH());
+      const r = window.dbRef(window.database, REMOTE_PATH());
       return new Promise((resolve) => {
         window.dbOnValue(r, (snap) => {
           const data = snap.val() || {};
@@ -731,7 +730,6 @@
       return null;
     }
   };
-  window.loadInspectionsRemoteOnce = loadInspectionsRemoteOnce; // Expose to babel
 
     // Auth that DOES NOT allow "any password" after first login.
   // If password changed since last auth for this settlement, force re-auth.
@@ -743,13 +741,7 @@
       localStorage.getItem('settlementPassword') ||
       '';
 
-    console.log('🔐 Attempting authentication for settlement:', key);
-
-    if (!key || String(pass).length < 6) {
-      console.error('❌ Auth failed: Invalid key or password too short');
-      console.error('Key:', key, 'Password length:', String(pass).length);
-      return false;
-    }
+    if (!key || String(pass).length < 6) return false;
 
     const email = `${key}@settlement.local`;
     const pwSigKey = `pwSig_${key}`;
@@ -759,43 +751,29 @@
     const lastPwSig = sessionStorage.getItem(pwSigKey) || '';
 
     // If already authed to this settlement and password hasn't changed, OK.
-    if (currentEmail === email.toLowerCase() && lastPwSig === pwSig) {
-      console.log('✅ Already authenticated as:', email);
-      return true;
-    }
+    if (currentEmail === email.toLowerCase() && lastPwSig === pwSig) return true;
 
     // Otherwise, sign out and sign in again with provided password.
     if (auth.currentUser) {
-      console.log('Signing out current user:', auth.currentUser.email);
       try { await signOut(auth); } catch (e) {}
     }
 
     try {
-      console.log('Attempting sign in as:', email);
       await signInWithEmailAndPassword(auth, email, String(pass));
       sessionStorage.setItem(pwSigKey, pwSig);
-      console.log('✅ Sign in successful');
       return true;
     } catch (e) {
-      console.log('Sign in failed, attempting to create user. Error:', e.code);
       if (e?.code === 'auth/user-not-found' || e?.code === 'auth/invalid-credential') {
         try {
-          console.log('Creating new user:', email);
           await createUserWithEmailAndPassword(auth, email, String(pass));
-          await signInWithEmailAndPassword(auth, email, String(pass));
-          sessionStorage.setItem(pwSigKey, pwSig);
-          console.log('✅ User created and signed in');
-          return true;
         } catch (ce) {
-          if (ce?.code === 'auth/email-already-in-use') {
-            console.error('❌ Email already in use - wrong password');
-            return false;
-          }
-          console.error('❌ User creation failed:', ce.code, ce.message);
+          if (ce?.code === 'auth/email-already-in-use') return false; // wrong password
           throw ce;
         }
+        await signInWithEmailAndPassword(auth, email, String(pass));
+        sessionStorage.setItem(pwSigKey, pwSig);
+        return true;
       }
-      console.error('❌ Auth failed:', e.code, e.message);
       return false;
     }
   };
@@ -862,21 +840,15 @@
         const saveInspectionRemote = async (inspection) => {
     try {
       const ok = await window.ensureSettlementAuth();
-      if (!ok) {
-        console.error('❌ Authentication failed - cannot sync to Firebase');
-        console.error('Settlement key:', window.getSettlementKey());
-        console.error('Password length:', (localStorage.getItem(`settlementPassword_${window.getSettlementKey()}`) || '').length);
-        throw new Error('AUTH_REQUIRED');
-      }
+      if (!ok) throw new Error('AUTH_REQUIRED');
 
       // Use Firebase push keys to avoid invalid characters in IDs (e.g. '.' from ISO timestamps)
-      const baseRef = window.dbRef(window.database, window.REMOTE_PATH());
+      const baseRef = window.dbRef(window.database, REMOTE_PATH());
 
       const firebaseKey = inspection.firebaseKey || inspection.firebaseId || inspection.firebase_id || inspection.firebaseKeyId;
       if (firebaseKey) {
-        const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
+        const r = window.dbRef(window.database, `${REMOTE_PATH()}/${firebaseKey}`);
         await window.dbSet(r, inspection);
-        console.log('✅ Updated existing inspection in Firebase:', firebaseKey);
         return firebaseKey;
       }
 
@@ -884,11 +856,9 @@
       const key = newRef.key;
       const payload = { ...inspection, firebaseKey: key };
       await window.dbSet(newRef, payload);
-      console.log('✅ Saved new inspection to Firebase:', key);
       return key;
     } catch (e) {
-      console.error('❌ Remote save failed:', e.message || e);
-      console.error('Full error:', e);
+      console.warn('Remote save failed', e);
       return null;
     }
   };
@@ -901,27 +871,6 @@ const saveInspection = async (data) => {
                 const request = store.add({ ...data, synced: false, createdAt: new Date().toISOString() });
                 request.onsuccess = () => resolve(request.result);
                 request.onerror = () => reject(request.error);
-            });
-        };
-
-        const updateInspection = async (id, updates) => {
-            const db = await openDB();
-            return new Promise((resolve, reject) => {
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                const store = tx.objectStore(STORE_NAME);
-                const getRequest = store.get(id);
-                getRequest.onsuccess = () => {
-                    const record = getRequest.result;
-                    if (!record) {
-                        reject(new Error('Record not found'));
-                        return;
-                    }
-                    const updated = { ...record, ...updates };
-                    const putRequest = store.put(updated);
-                    putRequest.onsuccess = () => resolve(putRequest.result);
-                    putRequest.onerror = () => reject(putRequest.error);
-                };
-                getRequest.onerror = () => reject(getRequest.error);
             });
         };
 
@@ -946,29 +895,6 @@ const saveInspection = async (data) => {
                 request.onsuccess = () => resolve();
                 request.onerror = () => reject(request.error);
             });
-        };
-
-        const deleteInspectionRemote = async (firebaseKey) => {
-            try {
-                const ok = await window.ensureSettlementAuth();
-                if (!ok) {
-                    console.error('❌ Cannot delete - auth failed');
-                    return false;
-                }
-                
-                if (!firebaseKey) {
-                    console.warn('No firebaseKey provided for deletion');
-                    return false;
-                }
-                
-                const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
-                await window.dbRemove(r);
-                console.log('✅ Deleted inspection from Firebase:', firebaseKey);
-                return true;
-            } catch (e) {
-                console.error('❌ Remote delete failed:', e);
-                return false;
-            }
         };
 
         // Signature Pad Component
@@ -1311,71 +1237,19 @@ const deleteSettlementEntry = (id) => {
             }, []);
 
             useEffect(() => {
-                if (activeTab !== 'history' || !currentSettlement) return;
-                
-                let unsubscribe = null;
-                
-                const setupRealtimeListener = async () => {
-                    try {
-                        const ok = await window.ensureSettlementAuth();
-                        if (!ok) {
-                            console.error('❌ Cannot setup listener - auth failed');
-                            return;
-                        }
-                        
-                        const ref = window.dbRef(window.database, window.REMOTE_PATH());
-                        
-                        // Setup real-time listener
-                        unsubscribe = window.dbOnValue(ref, async (snapshot) => {
-                            const data = snapshot.val() || {};
-                            const remoteData = Object.values(data).filter(Boolean);
-                            
-                            console.log(`🔄 Real-time update: ${remoteData.length} inspections from Firebase`);
-                            
-                            // Load local data
-                            const localData = await getInspections(currentSettlement, currentMonth);
-                            
-                            // Filter remote by current month
-                            const filtered = remoteData.filter(item => 
-                                item.settlement === currentSettlement && 
-                                item.month === currentMonth
-                            );
-                            
-                            // Merge local and remote
-                            const merged = [...filtered];
-                            const firebaseKeys = new Set(filtered.map(i => i.firebaseKey).filter(Boolean));
-                            
-                            localData.forEach(local => {
-                                if (!local.firebaseKey || !firebaseKeys.has(local.firebaseKey)) {
-                                    merged.push(local);
-                                }
-                            });
-                            
-                            setInspections(merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-                        });
-                        
-                    } catch (error) {
-                        console.error('❌ Error setting up listener:', error);
-                        // Fallback to local data
-                        try {
-                            const localData = await getInspections(currentSettlement, currentMonth);
-                            setInspections(localData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-                        } catch (e) {
-                            console.error('Failed to load even local data:', e);
-                        }
-                    }
-                };
-                
-                setupRealtimeListener();
-                
-                // Cleanup: unsubscribe when leaving tab or changing month/settlement
-                return () => {
-                    if (unsubscribe) {
-                        unsubscribe();
-                        console.log('🔌 Disconnected real-time listener');
-                    }
-                };
+                if (activeTab === 'history' && currentSettlement) {
+                    loadInspections();
+                }
             }, [activeTab, currentMonth, currentSettlement]);
+
+            const loadInspections = async () => {
+                try {
+                    const data = await getInspections(currentSettlement, currentMonth);
+                    setInspections(data.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                } catch (error) {
+                    console.error('Error loading inspections:', error);
+                }
+            };
 
             const showToast = (message) => {
                 setToast(message);
@@ -1410,21 +1284,11 @@ const deleteSettlementEntry = (id) => {
                 };
 
                 try {
-                    // First save locally
-                    const localId = await saveInspection(inspection);
-                    inspection.id = localId;
-                    
-                    // Then sync to cloud (per settlement) and get Firebase key
-                    const firebaseKey = await saveInspectionRemote(inspection);
-                    
-                    if (firebaseKey) {
-                        // Update local record with Firebase key
-                        inspection.firebaseKey = firebaseKey;
-                        await updateInspection(localId, { firebaseKey });
-                        showToast('✅ הביקורת נשמרה ומסונכרנת!');
-                    } else {
-                        showToast('⚠️ נשמר מקומית, לא הצליח לסנכרן');
-                    }
+                    await saveInspection(inspection);
+                    showToast('הביקורת נשמרה בהצלחה!');
+
+                // Sync to cloud (per settlement)
+                saveInspectionRemote(inspection);
                     
                     // Reset notes, signature and photo, keep name and role for convenience
                     setNotes('תקין');
@@ -1433,7 +1297,7 @@ const deleteSettlementEntry = (id) => {
                     
                 } catch (error) {
                     console.error('Error saving inspection:', error);
-                    showToast('❌ שגיאה בשמירה');
+                    showToast('שגיאה בשמירה');
                 }
             };
 
@@ -1605,25 +1469,11 @@ const deleteSettlementEntry = (id) => {
             const handleDeleteInspection = async (id) => {
                 if (confirm('למחוק את הביקורת?')) {
                     try {
-                        // Find the inspection to get its firebaseKey
-                        const inspection = inspections.find(i => i.id === id);
-                        
-                        // Delete from Firebase if it has a firebaseKey
-                        if (inspection?.firebaseKey) {
-                            await deleteInspectionRemote(inspection.firebaseKey);
-                            // Real-time listener will update the list automatically
-                        } else {
-                            showToast('⚠️ אין firebaseKey לביקורת הזו');
-                            return;
-                        }
-                        
-                        // Also delete from local IndexedDB
                         await deleteInspection(id);
-                        
-                        showToast('✅ הביקורת נמחקה');
+                        await loadInspections();
+                        showToast('הביקורת נמחקה');
                     } catch (error) {
                         console.error('Error deleting:', error);
-                        showToast('❌ שגיאה במחיקה');
                     }
                 }
             };
