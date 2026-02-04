@@ -755,16 +755,47 @@
             const [toast, setToast] = useState('');
             
 
-            // Load from cloud when opening the list/history tab
+            // Load from cloud when opening the list/history tab - Real-Time Sync
             useEffect(() => {
-                (async () => {
-                    if (activeTab !== 'list') return;
-                    const remote = await window.loadInspectionsRemoteOnce();
-                    if (remote && remote.length) {
-                        console.log(`✅ Loaded ${remote.length} tech inspections from Firebase`);
-                        setInspections(prev => window.mergeById(prev, remote));
+                if (activeTab !== 'list') return;
+                
+                let unsubscribe = null;
+                
+                const setupRealtimeListener = async () => {
+                    try {
+                        const ok = await window.ensureSettlementAuth();
+                        if (!ok) {
+                            console.error('❌ Cannot setup listener - auth failed');
+                            return;
+                        }
+                        
+                        const ref = window.dbRef(window.database, window.REMOTE_PATH());
+                        
+                        // Setup real-time listener
+                        unsubscribe = window.dbOnValue(ref, (snapshot) => {
+                            const data = snapshot.val() || {};
+                            const remoteData = Object.values(data).filter(Boolean);
+                            
+                            if (remoteData.length > 0) {
+                                console.log(`🔄 Real-time update: ${remoteData.length} tech inspections from Firebase`);
+                                setInspections(prev => window.mergeById(prev, remoteData));
+                            }
+                        });
+                        
+                    } catch (error) {
+                        console.error('❌ Error setting up listener:', error);
                     }
-                })();
+                };
+                
+                setupRealtimeListener();
+                
+                // Cleanup: unsubscribe when leaving tab
+                return () => {
+                    if (unsubscribe) {
+                        unsubscribe();
+                        console.log('🔌 Disconnected tech real-time listener');
+                    }
+                };
             }, [activeTab]);
 const [selectedInspection, setSelectedInspection] = useState(null);
 

@@ -1311,54 +1311,71 @@ const deleteSettlementEntry = (id) => {
             }, []);
 
             useEffect(() => {
-                if (activeTab === 'history' && currentSettlement) {
-                    loadInspections();
-                }
-            }, [activeTab, currentMonth, currentSettlement]);
-
-            const loadInspections = async () => {
-                try {
-                    // Load from local IndexedDB
-                    const localData = await getInspections(currentSettlement, currentMonth);
-                    
-                    // Try to load from Firebase
-                    const remoteData = await window.loadInspectionsRemoteOnce();
-                    
-                    if (remoteData && remoteData.length > 0) {
-                        console.log(`✅ Loaded ${remoteData.length} inspections from Firebase`);
+                if (activeTab !== 'history' || !currentSettlement) return;
+                
+                let unsubscribe = null;
+                
+                const setupRealtimeListener = async () => {
+                    try {
+                        const ok = await window.ensureSettlementAuth();
+                        if (!ok) {
+                            console.error('❌ Cannot setup listener - auth failed');
+                            return;
+                        }
                         
-                        // Filter by current month
-                        const filtered = remoteData.filter(item => 
-                            item.settlement === currentSettlement && 
-                            item.month === currentMonth
-                        );
+                        const ref = window.dbRef(window.database, window.REMOTE_PATH());
                         
-                        // Merge local and remote (remove duplicates by firebaseKey)
-                        const merged = [...filtered];
-                        const firebaseKeys = new Set(filtered.map(i => i.firebaseKey).filter(Boolean));
-                        
-                        localData.forEach(local => {
-                            if (!local.firebaseKey || !firebaseKeys.has(local.firebaseKey)) {
-                                merged.push(local);
-                            }
+                        // Setup real-time listener
+                        unsubscribe = window.dbOnValue(ref, async (snapshot) => {
+                            const data = snapshot.val() || {};
+                            const remoteData = Object.values(data).filter(Boolean);
+                            
+                            console.log(`🔄 Real-time update: ${remoteData.length} inspections from Firebase`);
+                            
+                            // Load local data
+                            const localData = await getInspections(currentSettlement, currentMonth);
+                            
+                            // Filter remote by current month
+                            const filtered = remoteData.filter(item => 
+                                item.settlement === currentSettlement && 
+                                item.month === currentMonth
+                            );
+                            
+                            // Merge local and remote
+                            const merged = [...filtered];
+                            const firebaseKeys = new Set(filtered.map(i => i.firebaseKey).filter(Boolean));
+                            
+                            localData.forEach(local => {
+                                if (!local.firebaseKey || !firebaseKeys.has(local.firebaseKey)) {
+                                    merged.push(local);
+                                }
+                            });
+                            
+                            setInspections(merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
                         });
                         
-                        setInspections(merged.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-                    } else {
-                        // No remote data, use local only
-                        setInspections(localData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                    } catch (error) {
+                        console.error('❌ Error setting up listener:', error);
+                        // Fallback to local data
+                        try {
+                            const localData = await getInspections(currentSettlement, currentMonth);
+                            setInspections(localData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                        } catch (e) {
+                            console.error('Failed to load even local data:', e);
+                        }
                     }
-                } catch (error) {
-                    console.error('Error loading inspections:', error);
-                    // Fallback to local data
-                    try {
-                        const localData = await getInspections(currentSettlement, currentMonth);
-                        setInspections(localData.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-                    } catch (e) {
-                        console.error('Failed to load even local data:', e);
+                };
+                
+                setupRealtimeListener();
+                
+                // Cleanup: unsubscribe when leaving tab or changing month/settlement
+                return () => {
+                    if (unsubscribe) {
+                        unsubscribe();
+                        console.log('🔌 Disconnected real-time listener');
                     }
-                }
-            };
+                };
+            }, [activeTab, currentMonth, currentSettlement]);
 
             const showToast = (message) => {
                 setToast(message);
