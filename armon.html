@@ -926,8 +926,11 @@ const [selectedInspection, setSelectedInspection] = useState(null);
                 }
             }, [officer]);
 
-            // Load inspections from localStorage
+            // Load inspections from localStorage ONLY on initial mount (not when in history tab)
             useEffect(() => {
+                // Don't load from localStorage if we're in history tab (Firebase will handle it)
+                if (activeTab === 'history') return;
+                
                 const saved = localStorage.getItem(STORAGE_KEY);
                 if (saved) {
                     setInspections(JSON.parse(saved));
