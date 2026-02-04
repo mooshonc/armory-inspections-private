@@ -776,10 +776,10 @@
                             const data = snapshot.val() || {};
                             const remoteData = Object.values(data).filter(Boolean);
                             
-                            if (remoteData.length > 0) {
-                                console.log(`🔄 Real-time update: ${remoteData.length} tech inspections from Firebase`);
-                                setInspections(prev => window.mergeById(prev, remoteData));
-                            }
+                            console.log(`🔄 Real-time update: ${remoteData.length} tech inspections from Firebase`);
+                            
+                            // Firebase is the source of truth - just use remote data
+                            setInspections(remoteData.sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||'')));
                         });
                         
                     } catch (error) {
