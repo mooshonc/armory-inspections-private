@@ -90,10 +90,13 @@
       const r = window.dbRef(window.database, window.REMOTE_PATH());
       return new Promise((resolve) => {
         window.dbOnValue(r, (snap) => {
-          const data = snap.val() || {};
-          const list = Object.values(data).filter(Boolean);
-          resolve(list);
-        }, { onlyOnce: true });
+  const list = [];
+  snap.forEach((child) => {
+    const val = child.val();
+    if (val) list.push({ ...val, firebaseKey: child.key });
+  });
+  resolve(list);
+}, { onlyOnce: true });
       });
     } catch (e) {
       console.warn('Remote load failed', e);
@@ -736,7 +739,7 @@
     <script type="text/babel">
         const { useState, useRef, useEffect } = React;
 
-        const STORAGE_KEY = 'tech_inspections';
+        const STORAGE_KEY = `tech_inspections_${window.getSettlementKey ? window.getSettlementKey() : 'default'}`;
         
         // Get settlement from localStorage (set by index.html)
         const getSettlement = () => {
@@ -752,16 +755,64 @@
             const SETTLEMENT = getSettlement();
             const [activeTab, setActiveTab] = useState('new');
             const [inspections, setInspections] = useState([]);
-            const [toast, setToast] = useState('');
+            
+// 🔄 Realtime sync of inspections (always on)
+useEffect(() => {
+    let unsubscribe = null;
+
+    const setupRealtimeListener = async () => {
+        try {
+            const ok = await window.ensureSettlementAuth();
+            if (!ok) return;
+
+            const ref = window.dbRef(window.database, window.REMOTE_PATH());
+            unsubscribe = window.dbOnValue(ref, (snapshot) => {
+                const remoteData = [];
+                snapshot.forEach((child) => {
+                    const val = child.val();
+                    if (val) remoteData.push({ ...val, firebaseKey: child.key });
+                });
+
+                // Reconcile: remote is source of truth; keep only local drafts (no firebaseKey yet)
+                setInspections(prev => {
+                    const localOnly = (prev || []).filter(x => x && !x.firebaseKey);
+                    const remoteByKey = new Map(
+                        remoteData
+                            .filter(x => x && x.firebaseKey)
+                            .map(x => [String(x.firebaseKey), x])
+                    );
+
+                    return [...remoteByKey.values(), ...localOnly]
+                        .sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+                });
+            });
+        } catch (e) {
+            console.warn('Realtime listener failed', e);
+        }
+    };
+
+    setupRealtimeListener();
+
+    return () => {
+        if (unsubscribe) unsubscribe();
+    };
+}, []);
+
+const [toast, setToast] = useState('');
             
 
             // Load from cloud when opening the list/history tab
             useEffect(() => {
                 (async () => {
-                    if (activeTab !== 'list') return;
-                    const remote = await loadInspectionsRemoteOnce();
+                    if (activeTab !== 'history') return;
+                    const remote = await window.loadInspectionsRemoteOnce();
                     if (remote && remote.length) {
-                        setInspections(prev => mergeById(prev, remote));
+                        setInspections(prev => {
+    const localOnly = (prev || []).filter(x => x && !x.firebaseKey);
+    const remoteByKey = new Map(((remote || remoteData) || []).filter(x => x && x.firebaseKey).map(x => [String(x.firebaseKey), x]));
+    return [...remoteByKey.values(), ...localOnly]
+      .sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+});
                     }
                 })();
             }, [activeTab]);
@@ -953,7 +1004,7 @@ const saveInspection = async () => {
                 showToast('הביקורת נשמרה בהצלחה!');
 
                 // Sync to cloud (per settlement)
-                const firebaseKey = await saveInspectionRemote(inspection);
+                const firebaseKey = await saveInspectionRemote(newInspection);
                 if (firebaseKey) {
                     console.log('✅ מסונכרן');
                 } else {
@@ -981,12 +1032,25 @@ const saveInspection = async () => {
                 setActiveTab('list');
             };
 
-            const deleteInspection = (id) => {
-                if (confirm('האם למחוק ביקורת זו?')) {
-                    setInspections(prev => prev.filter(i => i.id !== id));
-                    showToast('הביקורת נמחקה');
-                }
-            };
+            const deleteInspection = async (id, firebaseKey) => {
+    if (!confirm('האם למחוק ביקורת זו?')) return;
+
+    if (firebaseKey) {
+        try {
+            const ok = await window.ensureSettlementAuth();
+            if (!ok) throw new Error('AUTH_REQUIRED');
+            const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
+            await window.dbRemove(r);
+        } catch (e) {
+            console.warn('Remote delete failed', e);
+            showToast('❌ לא הצלחתי למחוק מהענן');
+            return;
+        }
+    }
+
+    setInspections(prev => prev.filter(i => i.id !== id));
+    showToast('הביקורת נמחקה');
+};
 
             const generatePDF = async () => {
                 if (inspections.length === 0) {
