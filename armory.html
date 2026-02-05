@@ -1525,6 +1525,7 @@ const deleteSettlementEntry = (id) => {
 
             const handleDeleteInspection = async (inspectionObj) => {
     if (!confirm('למחוק את הביקורת?')) return;
+
     try {
         // 1) Delete from Firebase first (so it won't come back)
         const fbKey = inspectionObj?.firebaseKey;
@@ -1535,19 +1536,19 @@ const deleteSettlementEntry = (id) => {
             await window.dbRemove(r);
         }
 
-        // 2) Delete local copy if it exists
+        // 2) Delete local copy if it exists (some remote-only rows won't have local id)
         await deleteInspection(inspectionObj?.id);
 
         // 3) Refresh local list (Realtime listener will also update)
         await loadInspections();
         showToast('הביקורת נמחקה');
     } catch (error) {
-                        console.error('Error deleting:', error);
-                    }
-                }
-            };
+        console.error('Error deleting:', error);
+        showToast('שגיאה במחיקה');
+    }
+};
 
-            const formatDate = (dateStr) => {
+const formatDate = (dateStr) => {
                 const date = new Date(dateStr);
                 return date.toLocaleDateString('he-IL');
             };

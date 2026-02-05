@@ -1007,10 +1007,25 @@ const saveInspection = async () => {
                 const firebaseKey = await saveInspectionRemote(inspection);
                 if (firebaseKey) {
     // Attach firebaseKey to the locally-added inspection so it won't duplicate
-    setInspections(prev =>
-        prev.map(i => (i.id === inspection.id ? { ...i, firebaseKey } : i))
+    setInspections(prev => {
+    // attach firebaseKey to the locally-added inspection
+    const updated = (prev || []).map(i =>
+        (i && i.id === inspection.id) ? { ...i, firebaseKey } : i
     );
-    console.log('✅ מסונכרן');
+
+    // if we already got the same inspection from realtime (same firebaseKey),
+    // keep only one copy
+    const byKey = new Map();
+    for (const item of updated) {
+        if (!item) continue;
+        const k = item.firebaseKey ? `fb:${item.firebaseKey}` : `id:${item.id}`;
+        // prefer the version that has firebaseKey
+        const existing = byKey.get(k);
+        if (!existing || (item.firebaseKey && !existing.firebaseKey)) byKey.set(k, item);
+    }
+    return Array.from(byKey.values());
+});
+console.log('✅ מסונכרן');
                 } else {
                     console.warn('⚠️ לא הצליח לסנכרן');
                 }
