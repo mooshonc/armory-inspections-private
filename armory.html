@@ -705,6 +705,7 @@
 
   // Remote path for syncing inspections (per settlement)
   const REMOTE_PATH = () => `settlements/${window.getSettlementKey()}/inspections_armory`;
+  window.REMOTE_PATH = REMOTE_PATH; // Expose to babel scripts
 
   const mergeById = (localList, remoteList) => {
     const map = new Map();
@@ -712,12 +713,13 @@
     (remoteList || []).forEach(x => x && map.set(String(x.id), x));
     return Array.from(map.values()).sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
   };
+  window.mergeById = mergeById; // Expose to babel scripts
 
   const loadInspectionsRemoteOnce = async () => {
     try {
       const ok = await window.ensureSettlementAuth();
       if (!ok) return null;
-      const r = window.dbRef(window.database, REMOTE_PATH());
+      const r = window.dbRef(window.database, window.REMOTE_PATH());
       return new Promise((resolve) => {
         window.dbOnValue(r, (snap) => {
           const data = snap.val() || {};
@@ -730,6 +732,7 @@
       return null;
     }
   };
+  window.loadInspectionsRemoteOnce = loadInspectionsRemoteOnce; // Expose to babel
 
     // Auth that DOES NOT allow "any password" after first login.
   // If password changed since last auth for this settlement, force re-auth.
@@ -843,11 +846,11 @@
       if (!ok) throw new Error('AUTH_REQUIRED');
 
       // Use Firebase push keys to avoid invalid characters in IDs (e.g. '.' from ISO timestamps)
-      const baseRef = window.dbRef(window.database, REMOTE_PATH());
+      const baseRef = window.dbRef(window.database, window.REMOTE_PATH());
 
       const firebaseKey = inspection.firebaseKey || inspection.firebaseId || inspection.firebase_id || inspection.firebaseKeyId;
       if (firebaseKey) {
-        const r = window.dbRef(window.database, `${REMOTE_PATH()}/${firebaseKey}`);
+        const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
         await window.dbSet(r, inspection);
         return firebaseKey;
       }
