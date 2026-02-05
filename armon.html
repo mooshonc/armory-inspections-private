@@ -881,7 +881,16 @@ useEffect(() => {
                             });
 
                             // Merge remote into local so offline/local entries remain visible until synced
-                            setInspections(prev => window.mergeById(prev, remoteData));
+                            setInspections(prev => {
+                                const remoteByKey = new Map(remoteData.filter(x => x && x.firebaseKey).map(x => [String(x.firebaseKey), x]));
+                                // Keep only truly-local drafts (no firebaseKey yet)
+                                const localOnly = (prev || []).filter(x => x && !x.firebaseKey);
+
+                                const merged = [...remoteByKey.values(), ...localOnly]
+                                  .sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+
+                                return merged;
+                            });
                         });
         } catch (e) {
             console.warn('Realtime listener failed', e);
@@ -905,7 +914,12 @@ useEffect(() => {
                     if (activeTab !== 'history') return;
                     const remote = await window.loadInspectionsRemoteOnce();
                     if (remote && remote.length) {
-                        setInspections(prev => window.mergeById(prev, remote));
+                        setInspections(prev => {
+                        const localOnly = (prev || []).filter(x => x && !x.firebaseKey);
+                        const remoteByKey = new Map((remote || []).filter(x => x && x.firebaseKey).map(x => [String(x.firebaseKey), x]));
+                        return [...remoteByKey.values(), ...localOnly]
+                          .sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));
+                    });
                     }
                 })();
             }, [activeTab]);
@@ -1077,6 +1091,10 @@ const saveInspection = async () => {
                 // Sync to cloud (per settlement)
                 const firebaseKey = await saveInspectionRemote(newInspection);
                 if (firebaseKey) {
+                    // Attach firebaseKey to the locally-added inspection so future deletes sync correctly
+                    setInspections(prev =>
+                        prev.map(i => (i.id === newInspection.id ? { ...i, firebaseKey } : i))
+                    );
                     console.log('✅ מסונכרן');
                 } else {
                     console.warn('⚠️ לא הצליח לסנכרן');
