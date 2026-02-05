@@ -1037,7 +1037,12 @@ const saveInspection = async () => {
                 showToast('הביקורת נשמרה בהצלחה!');
 
                 // Sync to cloud (per settlement)
-                saveInspectionRemote(inspection);
+                const firebaseKey = await saveInspectionRemote(inspection);
+                if (firebaseKey) {
+                    console.log('✅ מסונכרן');
+                } else {
+                    console.warn('⚠️ לא הצליח לסנכרן');
+                }
                 
                 // Reset form
                 setInspectionType('');
