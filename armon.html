@@ -747,8 +747,11 @@
       const r = window.dbRef(window.database, window.REMOTE_PATH());
       return new Promise((resolve) => {
         window.dbOnValue(r, (snap) => {
-          const data = snap.val() || {};
-          const list = Object.values(data).filter(Boolean);
+          const list = [];
+          snap.forEach((child) => {
+            const val = child.val();
+            if (val) list.push({ ...val, firebaseKey: child.key });
+          });
           resolve(list);
         }, { onlyOnce: true });
       });
@@ -871,12 +874,15 @@ useEffect(() => {
 
             const ref = window.dbRef(window.database, window.REMOTE_PATH());
             unsubscribe = window.dbOnValue(ref, (snapshot) => {
-                const data = snapshot.val() || {};
-                const remoteData = Object.values(data).filter(Boolean);
+                            const remoteData = [];
+                            snapshot.forEach((child) => {
+                                const val = child.val();
+                                if (val) remoteData.push({ ...val, firebaseKey: child.key });
+                            });
 
-                // Merge remote into local so offline/local entries remain visible until synced
-                setInspections(prev => window.mergeById(prev, remoteData));
-            });
+                            // Merge remote into local so offline/local entries remain visible until synced
+                            setInspections(prev => window.mergeById(prev, remoteData));
+                        });
         } catch (e) {
             console.warn('Realtime listener failed', e);
         }
