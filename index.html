@@ -387,6 +387,52 @@
 <body>
     <div id="root"></div>
 
+    <!-- Firebase SDK -->
+    <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import {
+    getAuth,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+  import {
+    getDatabase,
+    ref as dbRef,
+    set as dbSet,
+    get as dbGet,
+    onValue as dbOnValue,
+  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCBT3Fih2KyrebDd-SAkk7rHfA3YWmWg-c",
+    authDomain: "armory-inspections-private.firebaseapp.com",
+    databaseURL: "https://armory-inspections-private-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "armory-inspections-private",
+    storageBucket: "armory-inspections-private.appspot.com",
+    messagingSenderId: "415528668284",
+    appId: "1:415528668284:web:6829c57d517c09ccf04df9"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const database = getDatabase(app);
+
+  window.auth = auth;
+  window.database = database;
+  window.dbRef = dbRef;
+  window.dbSet = dbSet;
+  window.dbGet = dbGet;
+  window.dbOnValue = dbOnValue;
+  window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+  window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+  window.signOut = signOut;
+  window.onAuthStateChanged = onAuthStateChanged;
+  
+  console.log('✅ Firebase SDK loaded');
+</script>
+
     <script type="text/babel">
         const { useState, useEffect } = React;
 // ✅ תמיד קיים, לא תלוי בסוגריים בתוך App
