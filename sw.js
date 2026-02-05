@@ -1,49 +1,48 @@
-// sw.js — Stable PWA Service Worker (Network-first for navigations)
+// sw.js — Force-refresh + sane caching (Network-first for navigations)
+// Deploy this file as /sw.js (overwrite the old one)
 
-const VERSION = 'v1.0.0';               // 🔁 תעלה מספר בכל פריסה
+const VERSION = '2026-02-05_v1';
 const CACHE_STATIC = `static-${VERSION}`;
-const CACHE_PAGES  = `pages-${VERSION}`;
-
-// שים כאן דברים שאתה בטוח שקיימים תמיד בשורש
-const PRECACHE_URLS = [
-  '/',                 // ניווט לשורש
-  '/index.html',
-  '/manifest.json',
-  // '/icons/icon-192.png',
-  // '/icons/icon-512.png',
-];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
+  // Do NOT precache index.html here — we want navigations to always hit the network when possible.
   event.waitUntil(
-    caches.open(CACHE_STATIC).then((cache) => cache.addAll(PRECACHE_URLS).catch(() => {}))
+    caches.open(CACHE_STATIC).then((cache) => cache.addAll([
+      '/manifest.json',
+      // Add icons here if you want, e.g.:
+      // '/icons/icon-192.png',
+      // '/icons/icon-512.png',
+    ]).catch(() => {}))
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    // מחיקת caches ישנים לפי גרסה
+    // Drop ALL old caches (this fixes "installed app stuck on old index")
     const keys = await caches.keys();
-    await Promise.all(
-      keys
-        .filter((k) => ![CACHE_STATIC, CACHE_PAGES].includes(k))
-        .map((k) => caches.delete(k))
-    );
+    await Promise.all(keys.map((k) => caches.delete(k)));
 
     await self.clients.claim();
+
+    // Hard-refresh open clients so they fetch the new index.html from the network
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    await Promise.all(clients.map(async (client) => {
+      try {
+        // navigate() triggers a reload of the controlled page
+        if (client.url) await client.navigate(client.url);
+      } catch (_) {}
+    }));
   })());
 });
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-
-  // רק GET
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
 
-  // לא לגעת בבקשות ל-Firebase/IdentityToolkit וכו' (שהכל יישאר רשת רגילה)
-  // תוסיף כאן דומיינים נוספים אם צריך
+  // Never intercept Firebase/Google auth/data calls
   const BYPASS_HOSTS = [
     'identitytoolkit.googleapis.com',
     'securetoken.googleapis.com',
@@ -52,29 +51,27 @@ self.addEventListener('fetch', (event) => {
     'googleapis.com',
     'gstatic.com',
   ];
-  if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) {
-    return; // דפדפן ימשיך כרגיל לרשת
-  }
+  if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) return;
 
-  // ניווטים (דפים) — Network First כדי לא להיתקע על index ישן
-  const isNavigation = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+  const accept = req.headers.get('accept') || '';
+  const isNavigation = req.mode === 'navigate' || accept.includes('text/html');
+
   if (isNavigation) {
+    // ✅ Network-first (and prefer fresh HTML). Prevent "stuck" installed versions.
     event.respondWith((async () => {
       try {
-        const fresh = await fetch(req);
-        const cache = await caches.open(CACHE_PAGES);
-        cache.put(req, fresh.clone());
-        return fresh;
+        const res = await fetch(req, { cache: 'no-store' });
+        return res;
       } catch (e) {
-        // Offline fallback: מה שיש בקאש
-        const cached = await caches.match(req);
-        return cached || caches.match('/index.html');
+        // Offline fallback: try cached index if exists
+        const cached = await caches.match('/index.html');
+        return cached || Response.error();
       }
     })());
     return;
   }
 
-  // סטטיים (js/css/images/fonts) — Stale-While-Revalidate
+  // Static assets: stale-while-revalidate
   const isStatic =
     ['script', 'style', 'image', 'font'].includes(req.destination) ||
     /\.(js|css|png|jpg|jpeg|webp|svg|ico|woff2?)$/i.test(url.pathname);
@@ -83,8 +80,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       const cached = await caches.match(req);
       const fetchPromise = fetch(req).then(async (res) => {
-        const cache = await caches.open(CACHE_STATIC);
-        cache.put(req, res.clone());
+        try {
+          const cache = await caches.open(CACHE_STATIC);
+          cache.put(req, res.clone());
+        } catch (_) {}
         return res;
       }).catch(() => null);
 
@@ -93,5 +92,5 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // כל השאר — רשת רגילה
+  // Default: network
 });
