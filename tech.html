@@ -1004,9 +1004,13 @@ const saveInspection = async () => {
                 showToast('הביקורת נשמרה בהצלחה!');
 
                 // Sync to cloud (per settlement)
-                const firebaseKey = await saveInspectionRemote(newInspection);
+                const firebaseKey = await saveInspectionRemote(inspection);
                 if (firebaseKey) {
-                    console.log('✅ מסונכרן');
+    // Attach firebaseKey to the locally-added inspection so it won't duplicate
+    setInspections(prev =>
+        prev.map(i => (i.id === inspection.id ? { ...i, firebaseKey } : i))
+    );
+    console.log('✅ מסונכרן');
                 } else {
                     console.warn('⚠️ לא הצליח לסנכרן');
                 }
