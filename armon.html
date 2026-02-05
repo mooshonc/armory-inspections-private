@@ -824,7 +824,7 @@
             { code: '100081954', name: 'אמר"ל "עכבר"' }
         ];
 
-        const STORAGE_KEY = 'armon_inspections';
+        const STORAGE_KEY = `armon_inspections_${window.getSettlementKey ? window.getSettlementKey() : 'default'}`;
         
         // Get settlement from localStorage (set by index.html)
         const getSettlement = () => {
@@ -860,6 +860,35 @@
                 rank: ''
             });
             const [inspections, setInspections] = useState([]);
+// 🔄 Realtime sync of inspections (always on)
+useEffect(() => {
+    let unsubscribe = null;
+
+    const setupRealtimeListener = async () => {
+        try {
+            const ok = await window.ensureSettlementAuth();
+            if (!ok) return;
+
+            const ref = window.dbRef(window.database, window.REMOTE_PATH());
+            unsubscribe = window.dbOnValue(ref, (snapshot) => {
+                const data = snapshot.val() || {};
+                const remoteData = Object.values(data).filter(Boolean);
+
+                // Merge remote into local so offline/local entries remain visible until synced
+                setInspections(prev => window.mergeById(prev, remoteData));
+            });
+        } catch (e) {
+            console.warn('Realtime listener failed', e);
+        }
+    };
+
+    setupRealtimeListener();
+
+    return () => {
+        if (unsubscribe) unsubscribe();
+    };
+}, []);
+
             const [isGenerating, setIsGenerating] = useState(false);
             const [toast, setToast] = useState('');
             
@@ -867,10 +896,10 @@
             // Load from cloud when opening the list/history tab
             useEffect(() => {
                 (async () => {
-                    if (activeTab !== 'list') return;
-                    const remote = await loadInspectionsRemoteOnce();
+                    if (activeTab !== 'history') return;
+                    const remote = await window.loadInspectionsRemoteOnce();
                     if (remote && remote.length) {
-                        setInspections(prev => mergeById(prev, remote));
+                        setInspections(prev => window.mergeById(prev, remote));
                     }
                 })();
             }, [activeTab]);
@@ -1040,7 +1069,7 @@ const saveInspection = async () => {
                 showToast('הביקורת נשמרה בהצלחה!');
 
                 // Sync to cloud (per settlement)
-                const firebaseKey = await saveInspectionRemote(inspection);
+                const firebaseKey = await saveInspectionRemote(newInspection);
                 if (firebaseKey) {
                     console.log('✅ מסונכרן');
                 } else {
@@ -1238,12 +1267,26 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                 }
             };
 
-            const deleteInspection = (id) => {
-                if (confirm('האם למחוק ביקורת זו?')) {
-                    setInspections(prev => prev.filter(i => i.id !== id));
-                    showToast('הביקורת נמחקה');
-                }
-            };
+            const deleteInspection = async (id, firebaseKey) => {
+    if (!confirm('האם למחוק ביקורת זו?')) return;
+
+    if (firebaseKey) {
+        try {
+            const ok = await window.ensureSettlementAuth();
+            if (!ok) throw new Error('AUTH_REQUIRED');
+            const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${firebaseKey}`);
+            await window.dbRemove(r);
+        } catch (e) {
+            console.warn('Remote delete failed', e);
+            showToast('❌ לא הצלחתי למחוק מהענן');
+            return;
+        }
+    }
+
+    setInspections(prev => prev.filter(i => i.id !== id));
+    showToast('הביקורת נמחקה');
+};
+
 
             const formatDate = (dateStr) => {
                 const d = new Date(dateStr);
@@ -1617,12 +1660,28 @@ const pdfBytes = await pdfDoc.save({ updateFieldAppearances: true });
                                 <div className="modal-footer">
                                     <button 
                                         className="btn-modal-delete"
-                                        onClick={() => {
-                                            if (confirm('האם למחוק ביקורת זו?')) {
-                                                setInspections(prev => prev.filter(i => i.id !== selectedInspection.id));
-                                                setSelectedInspection(null);
-                                                showToast('הביקורת נמחקה');
+                                        onClick={async () => {
+                                            if (!confirm('האם למחוק ביקורת זו?')) return;
+
+                                            // Delete from Firebase first (so it won't "come back" from realtime sync)
+                                            const fbKey = selectedInspection?.firebaseKey;
+                                            if (fbKey) {
+                                                try {
+                                                    const ok = await window.ensureSettlementAuth();
+                                                    if (!ok) throw new Error('AUTH_REQUIRED');
+                                                    const r = window.dbRef(window.database, `${window.REMOTE_PATH()}/${fbKey}`);
+                                                    await window.dbRemove(r);
+                                                } catch (e) {
+                                                    console.warn('Remote delete failed', e);
+                                                    showToast('❌ לא הצלחתי למחוק מהענן');
+                                                    return;
+                                                }
                                             }
+
+                                            // Local remove (listener will also update)
+                                            setInspections(prev => prev.filter(i => i.id !== selectedInspection.id));
+                                            setSelectedInspection(null);
+                                            showToast('הביקורת נמחקה');
                                         }}
                                     >
                                         🗑️ מחק ביקורת
