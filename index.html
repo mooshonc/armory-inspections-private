@@ -442,6 +442,71 @@ const INSPECTIONS = [
                 return 's_' + (h >>> 0).toString(16);
             };
 
+            // Firebase sync functions for settlements
+            const ADMIN_EMAIL = "admin@settlements.local";
+            const ADMIN_PASSWORD = "settlements2024";
+            
+            const ensureAuth = async () => {
+                if (window.auth.currentUser) return true;
+                try {
+                    await window.signInWithEmailAndPassword(window.auth, ADMIN_EMAIL, ADMIN_PASSWORD);
+                    return true;
+                } catch (e) {
+                    if (e?.code === 'auth/user-not-found' || e?.code === 'auth/invalid-credential') {
+                        try {
+                            await window.createUserWithEmailAndPassword(window.auth, ADMIN_EMAIL, ADMIN_PASSWORD);
+                            await window.signInWithEmailAndPassword(window.auth, ADMIN_EMAIL, ADMIN_PASSWORD);
+                            return true;
+                        } catch (ce) {
+                            console.error('Auth creation failed:', ce);
+                            return false;
+                        }
+                    }
+                    console.error('Auth failed:', e);
+                    return false;
+                }
+            };
+
+            const syncSettlementsToFirebase = async (settlements) => {
+                try {
+                    const ok = await ensureAuth();
+                    if (!ok) {
+                        console.warn('Cannot sync - auth failed');
+                        return;
+                    }
+                    const ref = window.dbRef(window.database, 'public/settlements');
+                    await window.dbSet(ref, settlements);
+                    console.log('✅ Settlements synced to Firebase');
+                } catch (e) {
+                    console.error('Failed to sync settlements:', e);
+                }
+            };
+
+            const loadSettlementsFromFirebase = async () => {
+                try {
+                    const ref = window.dbRef(window.database, 'public/settlements');
+                    const snapshot = await window.dbGet(ref);
+                    if (snapshot.exists()) {
+                        return snapshot.val();
+                    }
+                    return null;
+                } catch (e) {
+                    console.error('Failed to load settlements from Firebase:', e);
+                    try {
+                        const ok = await ensureAuth();
+                        if (!ok) return null;
+                        const ref = window.dbRef(window.database, 'public/settlements');
+                        const snapshot = await window.dbGet(ref);
+                        if (snapshot.exists()) {
+                            return snapshot.val();
+                        }
+                    } catch (e2) {
+                        console.error('Failed even with auth:', e2);
+                    }
+                    return null;
+                }
+            };
+
             // Capture install prompt
             useEffect(() => {
                 const handler = (e) => {
