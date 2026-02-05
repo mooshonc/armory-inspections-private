@@ -1337,9 +1337,17 @@ const deleteSettlementEntry = (id) => {
                     showToast('הביקורת נשמרה בהצלחה!');
 
                 // Sync to cloud (per settlement)
-                const firebaseKey = await saveInspectionRemote(newInspection);
+                const firebaseKey = await saveInspectionRemote(inspection);
                 if (firebaseKey) {
+                    try {
+                        // Store firebaseKey locally so deletes can sync later
+                        inspection.firebaseKey = firebaseKey;
+                        await saveInspection(inspection);
+                    } catch (e) {
+                        console.warn('Local update after remote save failed', e);
+                    }
                     console.log('✅ מסונכרן');
+
                 } else {
                     console.warn('⚠️ לא הצליח לסנכרן');
                 }

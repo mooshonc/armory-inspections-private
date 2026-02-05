@@ -1044,13 +1044,14 @@ const saveInspection = async () => {
         } catch (e) {
             console.warn('Remote delete failed', e);
             showToast('❌ לא הצלחתי למחוק מהענן');
-            return;
+            return false;
         }
     }
 
     setInspections(prev => prev.filter(i => i.id !== id));
-    showToast('הביקורת נמחקה');
-};
+                showToast('הביקורת נמחקה');
+                return true;
+            };
 
             const generatePDF = async () => {
                 if (inspections.length === 0) {
@@ -1563,9 +1564,12 @@ const saveInspection = async () => {
                                 <div className="modal-footer">
                                     <button 
                                         className="btn-modal-delete"
-                                        onClick={() => {
-                                            deleteInspection(selectedInspection.id);
-                                            setSelectedInspection(null);
+                                        onClick={async () => {
+                                            const fbKey = selectedInspection?.firebaseKey;
+                                            const ok = await deleteInspection(selectedInspection.id, fbKey);
+                                            if (ok !== false) {
+                                                setSelectedInspection(null);
+                                            }
                                         }}
                                     >
                                         🗑️ מחק ביקורת
